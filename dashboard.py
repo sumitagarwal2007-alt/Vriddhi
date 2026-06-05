@@ -51,8 +51,21 @@ def get_performance_stats():
 def generate_header():
     trades, win_rate, pnl = get_performance_stats()
     color = "green" if pnl >= 0 else "red"
-    header_text = Text(f"VRIDDHI QUANT GOD'S EYE | Total Realized P/L: ${pnl:.2f} | Win Rate: {win_rate:.1f}% | Closed Trades: {trades}", style=f"bold {color}")
-    return Panel(Align.center(header_text), style="blue")
+    
+    market_status = "[gray]MARKET UNKNOWN[/gray]"
+    if trading_client:
+        try:
+            clock = trading_client.get_clock()
+            if clock.is_open:
+                market_status = "[bold green]🟢 MARKET OPEN[/bold green]"
+            else:
+                next_open = clock.next_open.strftime('%m/%d %H:%M EST')
+                market_status = f"[bold red]🔴 MARKET CLOSED[/bold red] (Opens {next_open})"
+        except Exception:
+            pass
+
+    header_text = f"[bold {color}]VRIDDHI QUANT GOD'S EYE[/bold {color}] | {market_status} | [bold {color}]Total Realized P/L: ${pnl:.2f} | Win Rate: {win_rate:.1f}% | Closed Trades: {trades}[/bold {color}]"
+    return Panel(Align.center(Text.from_markup(header_text)), style="blue")
 
 def generate_kosh():
     if not trading_client:
