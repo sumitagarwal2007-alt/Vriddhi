@@ -31,7 +31,7 @@ def get_client():
 
 from tenacity import retry, wait_exponential, stop_after_attempt
 
-@retry(wait=wait_exponential(multiplier=2, min=4, max=20), stop=stop_after_attempt(4))
+@retry(wait=wait_exponential(multiplier=2, min=4, max=20), stop=stop_after_attempt(6))
 async def analyze_headline(headline: str) -> HeadlineAnalysis:
     """Analyzes a headline and extracts tickers, sentiment, and reasoning."""
     c = get_client()
@@ -39,7 +39,7 @@ async def analyze_headline(headline: str) -> HeadlineAnalysis:
     # To not block event loop, we can run it in an executor, or if the client supports async we use it.
     # google.genai supports async through `client.aio.models.generate_content`.
     response = await c.aio.models.generate_content(
-        model='gemini-3.5-flash',
+        model='gemini-2.5-flash-lite',
         contents=f"Analyze the following financial headline: {headline}",
         config=types.GenerateContentConfig(
             response_mime_type="application/json",
