@@ -1,5 +1,6 @@
 import asyncio
 import os
+import signal
 from datetime import datetime
 from dotenv import load_dotenv
 
@@ -24,6 +25,9 @@ if API_KEY and SECRET_KEY and API_KEY != "YOUR_ALPACA_KEY":
     trading_client = TradingClient(API_KEY, SECRET_KEY, paper=True)
 
 CASH_BUDGET = 500.0
+
+alpaca_stream = None
+shutdown_event = None
 
 def print_banner():
     banner = """
@@ -143,23 +147,28 @@ async def _run_stream(stream):
 
 async def run_prahari_loop():
     """Runs the Alpaca News websocket stream."""
+    global alpaca_stream
     if not API_KEY or API_KEY == "YOUR_ALPACA_KEY":
         print("[Prahari Loop] Alpaca keys missing. Simulating news stream logic offline...")
         # Keep loop alive for the sake of the system
-        while True:
-            await asyncio.sleep(60)
+        while not shutdown_event.is_set():
+            try:
+                await asyncio.wait_for(shutdown_event.wait(), timeout=60)
+            except asyncio.TimeoutError:
+                pass
+        return
             
     try:
-        stream = NewsDataStream(API_KEY, SECRET_KEY)
-        stream.subscribe_news(handle_news, "*")
+        alpaca_stream = NewsDataStream(API_KEY, SECRET_KEY)
+        alpaca_stream.subscribe_news(handle_news, "*")
         print("[Prahari Loop] Connecting to Alpaca News Stream...")
-        await _run_stream(stream)
+        await _run_stream(alpaca_stream)
     except Exception as e:
         print(f"[Prahari Loop] Stream error: {e}")
 
 async def run_chanakya_loop():
     """Agent CHANAKYA - Risk Manager. Evaluates active positions every 60 seconds."""
-    while True:
+    while not shutdown_event.is_set():
         try:
             positions = await db.get_active_positions()
             for pos in positions:
@@ -224,9 +233,29 @@ async def run_chanakya_loop():
         except Exception as e:
             print(f"[Agent CHANAKYA] Error: {e}")
             
-        await asyncio.sleep(60)
+        try:
+            await asyncio.wait_for(shutdown_event.wait(), timeout=60)
+        except asyncio.TimeoutError:
+            pass
+
+async def shutdown_handler(sig):
+    print(f"\n[Orchestrator] Received shutdown signal. Gracefully suspending engine...")
+    shutdown_event.set()
+    if alpaca_stream:
+        try:
+            alpaca_stream.stop_ws()
+        except:
+            pass
+    notif.send_alert("⚠️ Engine Suspended", "Vriddhi Quant has been safely shut down for maintenance.", color=0xFFA500)
 
 async def main():
+    global shutdown_event
+    shutdown_event = asyncio.Event()
+    
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        loop.add_signal_handler(sig, lambda s=sig: asyncio.create_task(shutdown_handler(s)))
+        
     print_banner()
     await db.init_db()
     md.load_sp500_universe()
@@ -236,6 +265,7 @@ async def main():
         run_prahari_loop(),
         run_chanakya_loop()
     )
+    print("[Orchestrator] Shutdown complete.")
 
 if __name__ == "__main__":
     asyncio.run(main())
