@@ -39,7 +39,7 @@ async def analyze_headline(headline: str) -> HeadlineAnalysis:
     # To not block event loop, we can run it in an executor, or if the client supports async we use it.
     # google.genai supports async through `client.aio.models.generate_content`.
     response = await c.aio.models.generate_content(
-        model='gemini-2.5-pro',
+        model='gemini-1.5-flash',
         contents=f"Analyze the following financial headline: {headline}",
         config=types.GenerateContentConfig(
             response_mime_type="application/json",
