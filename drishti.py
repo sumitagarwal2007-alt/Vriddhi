@@ -5,8 +5,9 @@ import time
 from collections import deque
 from notifications import send_alert
 
-# Make sure logs directory exists
-os.makedirs("logs", exist_ok=True)
+# Make sure logs directory exists outside of iCloud (Home directory)
+LOG_DIR = os.path.expanduser("~/Vriddhi_Logs")
+os.makedirs(LOG_DIR, exist_ok=True)
 
 # Rolling buffer of last 25 lines
 log_buffer = deque(maxlen=25)
@@ -27,7 +28,7 @@ def main():
     global LAST_ALERT_TIME
     print_banner()
     
-    log_file = open("logs/main.log", "a")
+    log_file = open(os.path.join(LOG_DIR, "main.log"), "a")
     
     print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [Agent DRISHTI] Launching core engine...")
     proc = subprocess.Popen(
