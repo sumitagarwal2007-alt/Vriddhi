@@ -46,6 +46,17 @@ async def handle_news(news):
     
     print(f"[Prahari Loop] Received headline: {headline}")
     
+    # Pre-Filter Shield: Check if any symbol in the news is in our universe
+    has_eligible_symbol = False
+    for sym in news.symbols:
+        if md.is_eligible(sym):
+            has_eligible_symbol = True
+            break
+            
+    if not has_eligible_symbol:
+        print(f"[Prahari Loop] Dropping irrelevant headline: {headline[:50]}...")
+        return
+        
     try:
         analysis = await ai.analyze_headline(headline)
         print(f"[Agent BIRBAL] Analysis: {analysis.sentiment.value} - {analysis.reasoning}")
@@ -111,7 +122,7 @@ async def handle_news(news):
                         dynamic_stop_percent=stop_percent,
                         entry_time=timestamp
                     )
-                    notif.send_discord_alert(
+                    notif.send_alert(
                         "🚨 Trade Executed (Buy)",
                         f"Agent Birbal detected bullish news for **{ticker}**.\nBought {qty:.4f} shares at ${current_price:.2f}.",
                         0x00FF00
@@ -141,11 +152,14 @@ async def run_prahari_loop():
         print(f"[Prahari Loop] Stream error: {e}")
 
 async def run_chanakya_loop():
-    """Agent CHANAKYA - Risk Manager. Evaluates active positions every 10 seconds."""
+    """Agent CHANAKYA - Risk Manager. Evaluates active positions every 60 seconds."""
     while True:
         try:
             positions = await db.get_active_positions()
             for pos in positions:
+                # Sleep 1.5 seconds per position to strictly respect Finnhub's 60 RPM free tier
+                await asyncio.sleep(1.5)
+                
                 ticker = pos['ticker']
                 highest_price = pos['highest_tracked_price']
                 stop_percent = pos['dynamic_stop_percent']
@@ -195,7 +209,7 @@ async def run_chanakya_loop():
                             status=status
                         )
                         await db.remove_active_position(ticker)
-                        notif.send_discord_alert(
+                        notif.send_alert(
                             "⚠️ Emergency Liquidation (Sell)",
                             f"Agent Chanakya triggered trailing stop for **{ticker}** at ${current_price:.2f}.",
                             0xFF0000
@@ -204,7 +218,7 @@ async def run_chanakya_loop():
         except Exception as e:
             print(f"[Agent CHANAKYA] Error: {e}")
             
-        await asyncio.sleep(10)
+        await asyncio.sleep(60)
 
 async def main():
     print_banner()

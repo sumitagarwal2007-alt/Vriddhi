@@ -29,6 +29,9 @@ def get_client():
         client = genai.Client(api_key=api_key)
     return client
 
+from tenacity import retry, wait_exponential, stop_after_attempt
+
+@retry(wait=wait_exponential(multiplier=2, min=4, max=20), stop=stop_after_attempt(4))
 async def analyze_headline(headline: str) -> HeadlineAnalysis:
     """Analyzes a headline and extracts tickers, sentiment, and reasoning."""
     c = get_client()
