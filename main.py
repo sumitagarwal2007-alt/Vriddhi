@@ -38,6 +38,12 @@ def print_banner():
     """
     print(banner)
 
+import builtins
+_orig_print = builtins.print
+def _timestamped_print(*args, **kwargs):
+    _orig_print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]", *args, **kwargs)
+builtins.print = _timestamped_print
+
 async def handle_news(news):
     """The Prahari Loop: Callback for incoming news stream."""
     headline = news.headline
