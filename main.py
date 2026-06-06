@@ -50,8 +50,20 @@ def _timestamped_print(*args, **kwargs):
     _orig_print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]", *args, **kwargs)
 builtins.print = _timestamped_print
 
+def is_market_open() -> bool:
+    """Returns True if the US Stock Market is currently open."""
+    if trading_client:
+        try:
+            return trading_client.get_clock().is_open
+        except Exception:
+            return True
+    return True
+
 async def handle_news(news):
     """The Prahari Loop: Callback for incoming news stream."""
+    if not is_market_open():
+        return
+        
     global GLOBAL_CIRCUIT_BREAKER_TRIPPED
     if GLOBAL_CIRCUIT_BREAKER_TRIPPED:
         return
@@ -148,6 +160,13 @@ async def run_waitlist_loop():
     global GLOBAL_CIRCUIT_BREAKER_TRIPPED
     
     while not shutdown_event.is_set():
+        if not is_market_open():
+            try:
+                await asyncio.wait_for(shutdown_event.wait(), timeout=30)
+            except asyncio.TimeoutError:
+                pass
+            continue
+            
         try:
             waitlist = await db.get_waitlist()
             now = datetime.now()
@@ -231,6 +250,13 @@ async def run_chanakya_loop():
     global GLOBAL_CIRCUIT_BREAKER_TRIPPED
     
     while not shutdown_event.is_set():
+        if not is_market_open():
+            try:
+                await asyncio.wait_for(shutdown_event.wait(), timeout=60)
+            except asyncio.TimeoutError:
+                pass
+            continue
+            
         if GLOBAL_CIRCUIT_BREAKER_TRIPPED:
             try:
                 await asyncio.wait_for(shutdown_event.wait(), timeout=60)
