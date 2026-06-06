@@ -69,11 +69,11 @@ def calculate_dynamic_stop(ticker: str, current_price: float) -> float:
                 return 0.05
     return 0.025
 
-def get_spy_trend() -> bool:
-    """Returns True if SPY is stable/positive today (Macro Filter), False if it's dumping."""
+def get_spy_performance() -> float:
+    """Returns the daily percentage change of SPY."""
     token = os.getenv("FINNHUB_TOKEN")
     if not token or token == "YOUR_FINNHUB_KEY":
-        return True # Default pass if missing keys
+        return 0.0
 
     url = f"https://finnhub.io/api/v1/quote?symbol=SPY&token={token}"
     resp = requests.get(url)
@@ -82,11 +82,24 @@ def get_spy_trend() -> bool:
         current = float(data.get('c', 0.0))
         previous_close = float(data.get('pc', 0.0))
         if current > 0 and previous_close > 0:
-            change_pct = (current - previous_close) / previous_close
-            # If SPY is down more than 1% today, macro regime is dangerous
-            if change_pct < -0.01:
-                return False
-    return True
+            return (current - previous_close) / previous_close
+    return 0.0
+
+def get_vixy_change() -> float:
+    """Returns the daily percentage change of VIXY (VIX ETF) to measure fear."""
+    token = os.getenv("FINNHUB_TOKEN")
+    if not token or token == "YOUR_FINNHUB_KEY":
+        return 0.0
+
+    url = f"https://finnhub.io/api/v1/quote?symbol=VIXY&token={token}"
+    resp = requests.get(url)
+    if resp.status_code == 200:
+        data = resp.json()
+        current = float(data.get('c', 0.0))
+        previous_close = float(data.get('pc', 0.0))
+        if current > 0 and previous_close > 0:
+            return (current - previous_close) / previous_close
+    return 0.0
 
 def calculate_position_size(stop_percent: float) -> float:
     """

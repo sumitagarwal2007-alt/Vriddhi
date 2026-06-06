@@ -1,6 +1,7 @@
 import asyncio
 import os
 import signal
+import json
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 
@@ -93,7 +94,7 @@ async def handle_news(news):
                     print(f"[Prahari Loop] {ticker} ignored. Significance score {analysis.significance_score} is too low.")
                     continue
                     
-                if not md.get_spy_trend():
+                if md.get_spy_performance() < -0.01:
                     print(f"[Prahari Loop] {ticker} ignored. SPY Macro Trend is negative (Bleeding Market).")
                     continue
                 
@@ -263,9 +264,94 @@ async def run_chanakya_loop():
                         )
                         continue
                         
-            # 2. Standard Position Tracking
+            # 1.5. Event Calendar Check (Pre-Event Liquidation)
+            try:
+                if os.path.exists("events.json"):
+                    with open("events.json", "r") as f:
+                        calendar = json.load(f)
+                    now = datetime.now()
+                    for ev in calendar.get("events", []):
+                        ev_time = datetime.fromisoformat(ev["time"])
+                        time_to_event = ev_time - now
+                        if timedelta(0) <= time_to_event <= timedelta(minutes=15):
+                            print(f"[Agent CHANAKYA] ⚠️ PRE-EVENT LIQUIDATION TRIGGERED for {ev['name']}")
+                            if trading_client:
+                                try:
+                                    trading_client.close_all_positions(cancel_orders=True)
+                                except Exception as e:
+                                    print(f"[Alpaca API] Event Liquidation error: {e}")
+                            await db.wipe_all_active_positions()
+                            notif.send_alert("⚠️ Pre-Event Liquidation", f"Liquidated all positions ahead of: {ev['name']}. Pausing engine for 30 minutes.", color=0xFFA500)
+                            
+                            # Sleep for 30 minutes
+                            await asyncio.sleep(1800)
+                            break
+            except Exception as e:
+                print(f"[Agent CHANAKYA] Event calendar error: {e}")
+
+            # 2. VIX Check (Fear Mode)
+            vixy_change = md.get_vixy_change()
+            is_fear_mode = vixy_change > 0.05
+            if is_fear_mode:
+                print(f"[Agent CHANAKYA] ⚠️ FEAR MODE ACTIVE. VIXY is spiking (+{vixy_change*100:.2f}%). Tightening all stops to 1.5%!")
+
+            # 3. Macro Hedging
+            spy_perf = md.get_spy_performance()
             positions = await db.get_active_positions()
+            owns_sh = any(pos['ticker'] == 'SH' for pos in positions)
+            
+            if spy_perf <= -0.005 and not owns_sh:
+                print("[Agent CHANAKYA] Macro bleeding detected (SPY <= -0.5%). Deploying SH Hedge!")
+                sh_price = md.get_live_price("SH")
+                if sh_price > 0:
+                    qty = 500.0 / sh_price
+                    order_id = "MOCK_HEDGE"
+                    status = "FILLED"
+                    if trading_client:
+                        try:
+                            req = MarketOrderRequest(symbol="SH", qty=qty, side=OrderSide.BUY, time_in_force=TimeInForce.DAY)
+                            order = trading_client.submit_order(order_data=req)
+                            order_id = str(order.id)
+                            status = order.status.value
+                        except Exception as e:
+                            print(f"[Alpaca API] SH Hedge error: {e}")
+                            status = "FAILED"
+                    if status != "FAILED":
+                        ts = datetime.now().isoformat()
+                        await db.log_transaction(ts, order_id, "SH", "BUY", qty, sh_price, "MARKET", status)
+                        await db.add_active_position("SH", sh_price, qty, sh_price, 0.05, ts)
+                        notif.send_alert("🛡️ Hedge Deployed", f"SPY dropped {spy_perf*100:.2f}%. Bought {qty:.2f} shares of SH to hedge.", 0x0000FF)
+                        positions = await db.get_active_positions()
+                        
+            elif spy_perf > -0.005 and owns_sh:
+                print("[Agent CHANAKYA] Macro recovered. Removing SH Hedge!")
+                sh_pos = next(p for p in positions if p['ticker'] == 'SH')
+                sh_qty = sh_pos['share_qty']
+                sh_price = md.get_live_price("SH")
+                order_id = "MOCK_HEDGE_SELL"
+                status = "FILLED"
+                if trading_client:
+                    try:
+                        req = MarketOrderRequest(symbol="SH", qty=sh_qty, side=OrderSide.SELL, time_in_force=TimeInForce.DAY)
+                        order = trading_client.submit_order(order_data=req)
+                        order_id = str(order.id)
+                        status = order.status.value
+                    except Exception as e:
+                        print(f"[Alpaca API] SH Hedge Sell error: {e}")
+                        status = "FAILED"
+                if status != "FAILED":
+                    ts = datetime.now().isoformat()
+                    await db.log_transaction(ts, order_id, "SH", "SELL", sh_qty, sh_price, "MARKET", status)
+                    await db.remove_active_position("SH")
+                    notif.send_alert("🛡️ Hedge Removed", f"SPY recovered. Sold SH hedge.", 0x0000FF)
+                    positions = await db.get_active_positions()
+
+            # 4. Standard Position Tracking
             for pos in positions:
+                ticker = pos['ticker']
+                if ticker == 'SH':
+                    continue # Managed by macro hedge logic above
+                
                 # Sleep 1.5 seconds per position to strictly respect Finnhub's 60 RPM free tier
                 await asyncio.sleep(1.5)
                 
@@ -328,7 +414,8 @@ async def run_chanakya_loop():
                     await db.update_highest_price(ticker, current_price)
                     highest_price = current_price
                 
-                stop_price = highest_price * (1 - stop_percent)
+                active_stop_percent = 0.015 if is_fear_mode else stop_percent
+                stop_price = highest_price * (1 - active_stop_percent)
                 if current_price <= stop_price:
                     print(f"[Agent CHANAKYA] {ticker} dropped below trailing stop ({stop_price:.2f}). Liquidating!")
                     
