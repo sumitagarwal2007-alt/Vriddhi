@@ -214,53 +214,53 @@ async def run_waitlist_loop():
                             print(f"[Waitlist] Momentum Confirmed for {ticker}! ({initial_price} -> {current_price}). Executing Buy.")
                     
                     buy_budget = md.calculate_position_size(stop_percent)
-                        qty = buy_budget / current_price
+                    qty = buy_budget / current_price
+                    
+                    order_id = "MOCK_ORDER"
+                    status = "FILLED"
+                    if trading_client:
+                        try:
+                            req = MarketOrderRequest(
+                                symbol=ticker,
+                                qty=qty,
+                                side=OrderSide.BUY,
+                                time_in_force=TimeInForce.DAY
+                            )
+                            order = trading_client.submit_order(order_data=req)
+                            order_id = str(order.id)
+                            status = order.status.value
+                        except Exception as e:
+                            print(f"[Alpaca API] Buy error: {e}")
+                            status = "FAILED"
+                    else:
+                        print(f"[Waitlist] Mocking buy order for {qty:.4f} shares of {ticker}")
                         
-                        order_id = "MOCK_ORDER"
-                        status = "FILLED"
-                        if trading_client:
-                            try:
-                                req = MarketOrderRequest(
-                                    symbol=ticker,
-                                    qty=qty,
-                                    side=OrderSide.BUY,
-                                    time_in_force=TimeInForce.DAY
-                                )
-                                order = trading_client.submit_order(order_data=req)
-                                order_id = str(order.id)
-                                status = order.status.value
-                            except Exception as e:
-                                print(f"[Alpaca API] Buy error: {e}")
-                                status = "FAILED"
-                        else:
-                            print(f"[Waitlist] Mocking buy order for {qty:.4f} shares of {ticker}")
-                            
-                        if status != "FAILED":
-                            timestamp = datetime.now().isoformat()
-                            await db.log_transaction(
-                                timestamp=timestamp,
-                                alpaca_order_id=order_id,
-                                ticker=ticker,
-                                action="BUY",
-                                share_qty=qty,
-                                execution_price=current_price,
-                                order_type="MARKET",
-                                status=status
-                            )
-                            await db.add_active_position(
-                                ticker=ticker,
-                                purchase_price=current_price,
-                                share_qty=qty,
-                                highest_tracked_price=current_price,
-                                dynamic_stop_percent=stop_percent,
-                                entry_time=timestamp,
-                                profit_taken=0
-                            )
-                            notif.send_alert(
-                                "🚨 Trade Executed (Buy)",
-                                f"Waitlist momentum confirmed for **{ticker}**.\nBought {qty:.4f} shares at ${current_price:.2f}.",
-                                0x00FF00
-                            )
+                    if status != "FAILED":
+                        timestamp = datetime.now().isoformat()
+                        await db.log_transaction(
+                            timestamp=timestamp,
+                            alpaca_order_id=order_id,
+                            ticker=ticker,
+                            action="BUY",
+                            share_qty=qty,
+                            execution_price=current_price,
+                            order_type="MARKET",
+                            status=status
+                        )
+                        await db.add_active_position(
+                            ticker=ticker,
+                            purchase_price=current_price,
+                            share_qty=qty,
+                            highest_tracked_price=current_price,
+                            dynamic_stop_percent=stop_percent,
+                            entry_time=timestamp,
+                            profit_taken=0
+                        )
+                        notif.send_alert(
+                            "🚨 Trade Executed (Buy)",
+                            f"Waitlist momentum confirmed for **{ticker}**.\nBought {qty:.4f} shares at ${current_price:.2f}.",
+                            0x00FF00
+                        )
                     
                     await db.remove_from_waitlist(ticker)
         except Exception as e:
