@@ -129,3 +129,8 @@ async def remove_from_waitlist(ticker: str):
     async with aiosqlite.connect(DB_NAME) as db:
         await db.execute('DELETE FROM waitlist_positions WHERE ticker = ?', (ticker,))
         await db.commit()
+
+async def wipe_all_active_positions():
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute('DELETE FROM active_positions')
+        await db.commit()

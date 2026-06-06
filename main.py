@@ -28,6 +28,7 @@ CASH_BUDGET = 500.0
 
 alpaca_stream = None
 shutdown_event = None
+GLOBAL_CIRCUIT_BREAKER_TRIPPED = False
 
 def print_banner():
     banner = """
@@ -50,6 +51,10 @@ builtins.print = _timestamped_print
 
 async def handle_news(news):
     """The Prahari Loop: Callback for incoming news stream."""
+    global GLOBAL_CIRCUIT_BREAKER_TRIPPED
+    if GLOBAL_CIRCUIT_BREAKER_TRIPPED:
+        return
+        
     headline = news.headline
     # news.symbols might be a list
     timestamp = datetime.now().isoformat()
@@ -139,11 +144,17 @@ async def run_prahari_loop():
 
 async def run_waitlist_loop():
     """Checks waitlisted signals for price momentum confirmation after 3 minutes."""
+    global GLOBAL_CIRCUIT_BREAKER_TRIPPED
+    
     while not shutdown_event.is_set():
         try:
             waitlist = await db.get_waitlist()
             now = datetime.now()
             for w in waitlist:
+                if GLOBAL_CIRCUIT_BREAKER_TRIPPED:
+                    await db.remove_from_waitlist(w['ticker'])
+                    continue
+                    
                 target_time = datetime.fromisoformat(w['target_buy_time'])
                 if now >= target_time:
                     ticker = w['ticker']
@@ -216,8 +227,43 @@ async def run_waitlist_loop():
 
 async def run_chanakya_loop():
     """Agent CHANAKYA - Risk Manager. Evaluates active positions every 60 seconds."""
+    global GLOBAL_CIRCUIT_BREAKER_TRIPPED
+    
     while not shutdown_event.is_set():
+        if GLOBAL_CIRCUIT_BREAKER_TRIPPED:
+            try:
+                await asyncio.wait_for(shutdown_event.wait(), timeout=60)
+            except asyncio.TimeoutError:
+                pass
+            continue
+            
         try:
+            # 1. Global Circuit Breaker Check
+            if trading_client:
+                account = trading_client.get_account()
+                equity = float(account.equity)
+                last_equity = float(account.last_equity)
+                if last_equity > 0:
+                    daily_change = (equity - last_equity) / last_equity
+                    if daily_change <= -0.02:
+                        print(f"[Agent CHANAKYA] 🚨 GLOBAL CIRCUIT BREAKER TRIPPED! Daily drop is {daily_change*100:.2f}%!")
+                        GLOBAL_CIRCUIT_BREAKER_TRIPPED = True
+                        
+                        try:
+                            trading_client.close_all_positions(cancel_orders=True)
+                            print("[Agent CHANAKYA] Alpaca: ALL POSITIONS LIQUIDATED TO CASH.")
+                        except Exception as e:
+                            print(f"[Alpaca API] Close all positions error: {e}")
+                            
+                        await db.wipe_all_active_positions()
+                        notif.send_alert(
+                            "🚨 CIRCUIT BREAKER TRIPPED",
+                            f"Portfolio dropped {daily_change*100:.2f}% today. All open positions forcefully liquidated to cash to protect the fund. System is in lockdown.",
+                            color=0xFF0000
+                        )
+                        continue
+                        
+            # 2. Standard Position Tracking
             positions = await db.get_active_positions()
             for pos in positions:
                 # Sleep 1.5 seconds per position to strictly respect Finnhub's 60 RPM free tier
