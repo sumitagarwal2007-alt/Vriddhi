@@ -16,6 +16,7 @@ class Sentiment(str, Enum):
 class HeadlineAnalysis(BaseModel):
     tickers_found: List[str] = Field(description="Array of uppercase target strings.")
     sentiment: Sentiment = Field(description="Strict Enum: BULLISH, BEARISH, or NEUTRAL.")
+    significance_score: int = Field(description="Score from 1 to 10 indicating the magnitude and market impact of the news. 10 is massive.")
     reasoning: str = Field(description="Concise evaluation description text.")
 
 client = None

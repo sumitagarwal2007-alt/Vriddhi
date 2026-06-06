@@ -68,3 +68,36 @@ def calculate_dynamic_stop(ticker: str, current_price: float) -> float:
             if volatility_pct > 0.03: # >3% intraday range
                 return 0.05
     return 0.025
+
+def get_spy_trend() -> bool:
+    """Returns True if SPY is stable/positive today (Macro Filter), False if it's dumping."""
+    token = os.getenv("FINNHUB_TOKEN")
+    if not token or token == "YOUR_FINNHUB_KEY":
+        return True # Default pass if missing keys
+
+    url = f"https://finnhub.io/api/v1/quote?symbol=SPY&token={token}"
+    resp = requests.get(url)
+    if resp.status_code == 200:
+        data = resp.json()
+        current = float(data.get('c', 0.0))
+        previous_close = float(data.get('pc', 0.0))
+        if current > 0 and previous_close > 0:
+            change_pct = (current - previous_close) / previous_close
+            # If SPY is down more than 1% today, macro regime is dangerous
+            if change_pct < -0.01:
+                return False
+    return True
+
+def calculate_position_size(stop_percent: float) -> float:
+    """
+    Fixed fractional risk model.
+    Risk exactly $20 per trade.
+    Position Size = Risk / Stop_Percent
+    """
+    risk_amount = 20.0
+    if stop_percent <= 0:
+        return 500.0 # fallback
+    
+    size = risk_amount / stop_percent
+    # Cap size between $100 and $1000
+    return max(100.0, min(1000.0, size))
