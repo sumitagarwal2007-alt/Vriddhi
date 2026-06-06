@@ -61,9 +61,6 @@ def is_market_open() -> bool:
 
 async def handle_news(news):
     """The Prahari Loop: Callback for incoming news stream."""
-    if not is_market_open():
-        return
-        
     global GLOBAL_CIRCUIT_BREAKER_TRIPPED
     if GLOBAL_CIRCUIT_BREAKER_TRIPPED:
         return
@@ -116,15 +113,31 @@ async def handle_news(news):
                 
                 stop_percent = md.calculate_dynamic_stop(ticker, current_price)
                 
-                target_time = (datetime.now() + timedelta(minutes=3)).isoformat()
-                print(f"[Gateway YUKTI] {ticker} waitlisted at ${current_price}. Pending 3-min confirmation shield...")
+                if is_market_open():
+                    target_time = (datetime.now() + timedelta(minutes=3)).isoformat()
+                    is_overnight = 0
+                    print(f"[Gateway YUKTI] {ticker} waitlisted at ${current_price}. Pending 3-min confirmation shield...")
+                else:
+                    if trading_client:
+                        try:
+                            clock = trading_client.get_clock()
+                            # Re-Evaluate 30 mins before next open
+                            target_dt = clock.next_open - timedelta(minutes=30)
+                            target_time = target_dt.isoformat()
+                        except:
+                            target_time = (datetime.now() + timedelta(hours=12)).isoformat()
+                    else:
+                        target_time = (datetime.now() + timedelta(hours=12)).isoformat()
+                    is_overnight = 1
+                    print(f"[Gateway YUKTI] Night Watch Active. {ticker} queued for Pre-Market Re-Evaluation at {target_time}.")
                 
                 await db.add_to_waitlist(
                     ticker=ticker,
                     initial_price=current_price,
                     target_buy_time=target_time,
                     headline=headline,
-                    stop_percent=stop_percent
+                    stop_percent=stop_percent,
+                    is_overnight=is_overnight
                 )
             
     except Exception as e:
@@ -160,13 +173,6 @@ async def run_waitlist_loop():
     global GLOBAL_CIRCUIT_BREAKER_TRIPPED
     
     while not shutdown_event.is_set():
-        if not is_market_open():
-            try:
-                await asyncio.wait_for(shutdown_event.wait(), timeout=30)
-            except asyncio.TimeoutError:
-                pass
-            continue
-            
         try:
             waitlist = await db.get_waitlist()
             now = datetime.now()
@@ -180,12 +186,34 @@ async def run_waitlist_loop():
                     ticker = w['ticker']
                     initial_price = w['initial_price']
                     stop_percent = w['stop_percent']
+                    is_overnight = w.get('is_overnight', 0)
                     
                     current_price = md.get_live_price(ticker)
-                    if current_price > initial_price:
-                        print(f"[Waitlist] Momentum Confirmed for {ticker}! ({initial_price} -> {current_price}). Executing Buy.")
+                    if current_price <= 0:
+                        continue
                         
-                        buy_budget = md.calculate_position_size(stop_percent)
+                    if is_overnight:
+                        # Night Watch Pre-Market Re-Evaluation
+                        overnight_gap = (current_price - initial_price) / initial_price
+                        if overnight_gap > 0.02:
+                            print(f"[Night Watch] REJECTED {ticker}: Gapped up {overnight_gap*100:.2f}%. Avoiding opening trap.")
+                            await db.remove_from_waitlist(ticker)
+                            continue
+                        elif overnight_gap < -0.01:
+                            print(f"[Night Watch] REJECTED {ticker}: Bleeding overnight ({overnight_gap*100:.2f}%).")
+                            await db.remove_from_waitlist(ticker)
+                            continue
+                        else:
+                            print(f"[Night Watch] APPROVED {ticker}: Gap is {overnight_gap*100:.2f}%. Queueing Market Open Order.")
+                    else:
+                        if current_price <= initial_price:
+                            print(f"[Waitlist] Fakeout detected for {ticker} ({initial_price} -> {current_price}). Dropping signal.")
+                            await db.remove_from_waitlist(ticker)
+                            continue
+                        else:
+                            print(f"[Waitlist] Momentum Confirmed for {ticker}! ({initial_price} -> {current_price}). Executing Buy.")
+                    
+                    buy_budget = md.calculate_position_size(stop_percent)
                         qty = buy_budget / current_price
                         
                         order_id = "MOCK_ORDER"
@@ -233,8 +261,6 @@ async def run_waitlist_loop():
                                 f"Waitlist momentum confirmed for **{ticker}**.\nBought {qty:.4f} shares at ${current_price:.2f}.",
                                 0x00FF00
                             )
-                    else:
-                        print(f"[Waitlist] Fakeout detected for {ticker} ({initial_price} -> {current_price}). Dropping signal.")
                     
                     await db.remove_from_waitlist(ticker)
         except Exception as e:

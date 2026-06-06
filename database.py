@@ -56,6 +56,12 @@ async def init_db():
                 stop_percent REAL
             )
         ''')
+        # Night Watch Upgrade: Add is_overnight to waitlist_positions
+        try:
+            await db.execute('ALTER TABLE waitlist_positions ADD COLUMN is_overnight INTEGER DEFAULT 0')
+        except sqlite3.OperationalError:
+            pass # Column already exists
+            
         await db.commit()
 
 async def log_signal(timestamp: str, raw_headline: str, extracted_ticker: str, ai_sentiment: str, ai_reasoning: str, is_eligible: int):
@@ -110,12 +116,12 @@ async def mark_profit_taken(ticker: str, new_qty: float):
         ''', (new_qty, ticker))
         await db.commit()
 
-async def add_to_waitlist(ticker: str, initial_price: float, target_buy_time: str, headline: str, stop_percent: float):
+async def add_to_waitlist(ticker: str, initial_price: float, target_buy_time: str, headline: str, stop_percent: float, is_overnight: int = 0):
     async with aiosqlite.connect(DB_NAME) as db:
         await db.execute('''
-            INSERT OR REPLACE INTO waitlist_positions (ticker, initial_price, target_buy_time, headline, stop_percent)
-            VALUES (?, ?, ?, ?, ?)
-        ''', (ticker, initial_price, target_buy_time, headline, stop_percent))
+            INSERT OR REPLACE INTO waitlist_positions (ticker, initial_price, target_buy_time, headline, stop_percent, is_overnight)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (ticker, initial_price, target_buy_time, headline, stop_percent, is_overnight))
         await db.commit()
 
 async def get_waitlist() -> List[Dict[str, Any]]:
