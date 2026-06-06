@@ -65,8 +65,13 @@ def main():
                     
     except KeyboardInterrupt:
         print("\n[Agent DRISHTI] Received shutdown signal. Terminating engine...")
-        proc.terminate()
-        proc.wait()
+        try:
+            proc.terminate()
+            proc.wait(timeout=3)
+        except subprocess.TimeoutExpired:
+            print("[Agent DRISHTI] Engine hung on shutdown. Force killing (SIGKILL)...")
+            proc.kill()
+            proc.wait()
     except Exception as e:
         print(f"\n[Agent DRISHTI] Watchdog internal error: {e}")
     finally:
