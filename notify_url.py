@@ -1,12 +1,11 @@
 import sys
-from discord_notifier import DiscordNotifier
+from notifications import send_alert
 
 def main():
     if len(sys.argv) < 2:
         return
     url = sys.argv[1]
-    notif = DiscordNotifier()
-    notif.send_alert(
+    send_alert(
         "📱 God's Eye Online", 
         f"Vriddhi Dashboard is globally accessible at:\n**{url}**",
         0x66FCF1
