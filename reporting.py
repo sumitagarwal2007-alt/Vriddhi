@@ -7,18 +7,21 @@ def generate_report():
     try:
         conn = sqlite3.connect(DB_NAME)
     except Exception as e:
-        print(f"Database error: {e}")
-        return
+        err = f"Database error: {e}"
+        print(err)
+        return err
         
     try:
         df = pd.read_sql_query("SELECT * FROM transactions", conn)
     except Exception:
-        print("No transactions found or database not initialized.")
-        return
+        err = "No transactions found or database not initialized."
+        print(err)
+        return err
         
     if df.empty:
-        print("No transactions found.")
-        return
+        err = "No transactions found."
+        print(err)
+        return err
         
     buys = df[df['action'] == 'BUY'].copy()
     sells = df[df['action'] == 'SELL'].copy()
@@ -27,9 +30,9 @@ def generate_report():
     closed_trades = pd.merge(buys, sells, on='ticker', suffixes=('_buy', '_sell'))
     
     if closed_trades.empty:
-        print("No closed trades yet to analyze performance.")
-        print(f"Currently open positions: {len(buys)}")
-        return
+        err = f"No closed trades yet to analyze performance.\nCurrently open positions: {len(buys)}"
+        print(err)
+        return err
     
     # Calculate Realized Profit / Loss
     closed_trades['realized_pl'] = (closed_trades['execution_price_sell'] - closed_trades['execution_price_buy']) * closed_trades['share_qty_buy']
@@ -46,25 +49,29 @@ def generate_report():
     
     # Count total executed orders
     total_orders = len(df)
-    
-    print("\n" + "="*50)
-    print(" 📊 VRIDDHI QUANT - PERFORMANCE REPORT")
-    print("="*50)
-    print(f"Total Executed Orders: {total_orders}")
-    print(f"Total Closed Trades:   {total_trades}")
-    print(f"Win Rate:              {win_rate:.2f}%")
-    print(f"Total Realized P/L:    ${total_realized_pl:.2f}")
-    print("\n🏆 Top Performing Assets:")
+    report_lines = []
+    report_lines.append("\n" + "="*50)
+    report_lines.append(" 📊 VRIDDHI QUANT - PERFORMANCE REPORT")
+    report_lines.append("="*50)
+    report_lines.append(f"Total Executed Orders: {total_orders}")
+    report_lines.append(f"Total Closed Trades:   {total_trades}")
+    report_lines.append(f"Win Rate:              {win_rate:.2f}%")
+    report_lines.append(f"Total Realized P/L:    ${total_realized_pl:.2f}")
+    report_lines.append("\n🏆 Top Performing Assets:")
     
     # Print markdown table
-    print("| Ticker | Realized P/L ($) |")
-    print("|--------|------------------|")
+    report_lines.append("```text")
+    report_lines.append("| Ticker | Realized P/L ($) |")
+    report_lines.append("|--------|------------------|")
     for _, row in top_assets.iterrows():
-        print(f"| {row['ticker']:<6} | {row['realized_pl']:>16.2f} |")
-        
-    print("\n" + "="*50)
+        report_lines.append(f"| {row['ticker']:<6} | {row['realized_pl']:>16.2f} |")
+    report_lines.append("```")
+    report_lines.append("="*50)
     
     conn.close()
+    
+    full_report = "\n".join(report_lines)
+    return full_report
 
 if __name__ == "__main__":
-    generate_report()
+    print(generate_report())

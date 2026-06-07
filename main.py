@@ -517,6 +517,39 @@ async def run_chanakya_loop():
         except asyncio.TimeoutError:
             pass
 
+async def run_eod_report_loop():
+    """Agent SURYA - End of Day Reporting. Sends a Discord summary at 4:05 PM EST."""
+    try:
+        from zoneinfo import ZoneInfo
+    except ImportError:
+        import pytz as tz
+        ZoneInfo = lambda x: tz.timezone(x)
+        
+    eastern = ZoneInfo('US/Eastern')
+    
+    while not shutdown_event.is_set():
+        now = datetime.now(eastern)
+        
+        # Check if it's a weekday and time is 16:05 (4:05 PM)
+        if now.weekday() < 5 and now.hour == 16 and now.minute == 5:
+            print("[Agent SURYA] Generating Market Close Summary...")
+            try:
+                import reporting
+                report_str = reporting.generate_report()
+                if report_str:
+                    notif.send_alert("📉 Market Close Summary", report_str, 0x00BFFF)
+            except Exception as e:
+                print(f"[Agent SURYA] Error generating EOD report: {e}")
+                
+            # Sleep 60 seconds to avoid firing multiple times in the same minute
+            await asyncio.sleep(60)
+            continue
+            
+        try:
+            await asyncio.wait_for(shutdown_event.wait(), timeout=30)
+        except asyncio.TimeoutError:
+            pass
+
 async def shutdown_handler(sig):
     print(f"\n[Orchestrator] Received shutdown signal. Gracefully suspending engine...")
     shutdown_event.set()
@@ -543,7 +576,8 @@ async def main():
     await asyncio.gather(
         run_prahari_loop(),
         run_waitlist_loop(),
-        run_chanakya_loop()
+        run_chanakya_loop(),
+        run_eod_report_loop()
     )
     print("[Orchestrator] Shutdown complete.")
 
