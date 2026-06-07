@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Vriddhi | God's Eye</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Outfit:wght@500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+</head>
+<body>
+    <div class="glow-bg"></div>
+    <div class="container">
+        
+        <!-- Header -->
+        <header class="glass-panel">
+            <div class="header-top">
+                <h1 class="gradient-text">VRIDDHI <span>QUANT</span></h1>
+                <div class="status-badge" id="market-status">
+                    <span class="dot"></span> <span id="market-text">Loading...</span>
+                </div>
+            </div>
+            <div class="stats-row">
+                <div class="stat-box">
+                    <span class="label">Realized P/L</span>
+                    <span class="value" id="total-pnl">$0.00</span>
+                </div>
+                <div class="stat-box">
+                    <span class="label">Win Rate</span>
+                    <span class="value" id="win-rate">0.0%</span>
+                </div>
+                <div class="stat-box">
+                    <span class="label">Trades</span>
+                    <span class="value" id="total-trades">0</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- KOSH (Treasury) -->
+        <section class="glass-panel kosh-panel">
+            <div class="panel-header">
+                <h2>💰 The Kosh (Treasury)</h2>
+            </div>
+            <div class="kosh-grid">
+                <div class="kosh-item">
+                    <span class="label">Portfolio Value</span>
+                    <span class="value highlight-gold" id="kosh-value">$0.00</span>
+                </div>
+                <div class="kosh-item">
+                    <span class="label">Cash Left</span>
+                    <span class="value" id="kosh-cash">$0.00</span>
+                </div>
+                <div class="kosh-item">
+                    <span class="label">Buying Power</span>
+                    <span class="value" id="kosh-bp">$0.00</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- The Battlefield (Positions & Waitlist) -->
+        <section class="glass-panel battlefield-panel">
+            <div class="panel-header">
+                <h2>⚔️ The Battlefield</h2>
+                <div class="tab-switcher">
+                    <button class="tab-btn active" onclick="switchTab('active')">Active</button>
+                    <button class="tab-btn" onclick="switchTab('waitlist')">Waitlist</button>
+                </div>
+            </div>
+            
+            <div id="active-positions" class="tab-content active-tab">
+                <div class="list-container" id="positions-list">
+                    <div class="empty-state">Loading positions...</div>
+                </div>
+            </div>
+            
+            <div id="waitlist-positions" class="tab-content">
+                <div class="list-container" id="waitlist-list">
+                    <div class="empty-state">Loading waitlist...</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Intelligence (News) -->
+        <section class="glass-panel intelligence-panel">
+            <div class="panel-header">
+                <h2>📰 Intelligence Log</h2>
+                <span class="pulse-indicator">Live</span>
+            </div>
+            <div class="news-list" id="news-list">
+                <div class="empty-state">Waiting for news stream...</div>
+            </div>
+        </section>
+
+    </div>
+    <script src="/static/app.js"></script>
+</body>
+</html>
