@@ -163,4 +163,4 @@ def api_positions():
 
 if __name__ == '__main__':
     # Bind to 0.0.0.0 to allow access from other devices on the same WiFi
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=8000, debug=True)
