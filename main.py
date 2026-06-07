@@ -160,13 +160,16 @@ async def run_prahari_loop():
                 pass
         return
             
-    try:
-        alpaca_stream = NewsDataStream(API_KEY, SECRET_KEY)
-        alpaca_stream.subscribe_news(handle_news, "*")
-        print("[Prahari Loop] Connecting to Alpaca News Stream...")
-        await _run_stream(alpaca_stream)
-    except Exception as e:
-        print(f"[Prahari Loop] Stream error: {e}")
+    while not shutdown_event.is_set():
+        try:
+            alpaca_stream = NewsDataStream(API_KEY, SECRET_KEY)
+            alpaca_stream.subscribe_news(handle_news, "*")
+            print("[Prahari Loop] Connecting to Alpaca News Stream...")
+            await _run_stream(alpaca_stream)
+        except Exception as e:
+            print(f"[Prahari Loop] Stream error: {e}")
+            print("[Prahari Loop] Waiting 10 seconds before auto-reconnect...")
+            await asyncio.sleep(10)
 
 async def run_waitlist_loop():
     """Checks waitlisted signals for price momentum confirmation after 3 minutes."""
