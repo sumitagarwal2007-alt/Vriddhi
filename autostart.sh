@@ -12,11 +12,12 @@ sleep 30
 cd /Users/sumitagarwal/Documents/AntiGravity/Vriddhi || exit 1
 
 # 3. Clean up any zombie processes from an improper shutdown
-echo "Cleaning up zombie ports..."
+echo "Cleaning up zombie ports and processes..."
 lsof -ti:8000 | xargs kill -9 2>/dev/null
-pkill -f "cloudflared" 2>/dev/null
-pkill -f "drishti.py" 2>/dev/null
-pkill -f "main.py" 2>/dev/null
+pkill -9 -f "cloudflared" 2>/dev/null
+pkill -9 -f "drishti.py" 2>/dev/null
+pkill -9 -f "main.py" 2>/dev/null
+pkill -9 -f "app.py" 2>/dev/null
 
 # 4. Boot the Core Trading Engine (Drishti / Main)
 echo "Booting Core Engine (Agent Drishti)..."
