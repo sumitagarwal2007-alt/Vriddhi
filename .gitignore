@@ -7,3 +7,8 @@ __pycache__/
 .Python
 env/
 trading_agent.db
+
+cloudflared
+cloudflare.log
+web.log
+cloudflared.tgz
