@@ -28,6 +28,7 @@ if [ -n "$URL" ]; then
     echo "You can access your dashboard from anywhere via 5G at:"
     echo -e "\033[1;32m$URL\033[0m"
     echo "========================================="
+    venv/bin/python notify_url.py "$URL"
 else
     echo "⚠️ Could not parse the URL automatically."
     echo "Please check cloudflare.log manually."
