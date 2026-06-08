@@ -81,11 +81,10 @@ async def test_groq_burst():
     print(f"Groq Total Successful Requests before blocking: {success_count}")
 
 async def main():
-    print("⚠️ WARNING: This will consume a portion of your daily quotas!")
-    await asyncio.sleep(2)
+    print("⚠️ WARNING: Testing Groq limits...")
+    await asyncio.sleep(1)
     
-    await test_gemini_burst()
-    await asyncio.sleep(2)
+    # await test_gemini_burst() # We already know Gemini is capped at 5 RPM!
     await test_groq_burst()
 
 if __name__ == "__main__":
