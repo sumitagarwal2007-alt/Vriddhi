@@ -15,11 +15,14 @@ class Sentiment(str, Enum):
     BEARISH = "BEARISH"
     NEUTRAL = "NEUTRAL"
 
-class HeadlineAnalysis(BaseModel):
-    tickers_found: List[str] = Field(description="Array of uppercase target strings.")
+class TickerAnalysis(BaseModel):
+    ticker: str = Field(description="Uppercase ticker symbol.")
     sentiment: Sentiment = Field(description="Strict Enum: BULLISH, BEARISH, or NEUTRAL.")
     significance_score: int = Field(description="Score from 1 to 10 indicating the magnitude and market impact of the news. 10 is massive.")
-    reasoning: str = Field(description="Concise evaluation description text.")
+    reasoning: str = Field(description="Concise evaluation description text specifically for this ticker.")
+
+class HeadlineAnalysis(BaseModel):
+    analyses: List[TickerAnalysis] = Field(description="List of individual analyses for each relevant ticker found in the headline. If no tickers are found, this list should be empty.")
 
 client = None
 
@@ -43,10 +46,14 @@ async def _analyze_with_groq(headline: str) -> HeadlineAnalysis:
     system_prompt = """You are a highly capable financial sentiment analysis AI. 
 Analyze the headline and output ONLY a raw JSON object matching this schema exactly:
 {
-  "tickers_found": ["TICKER1", "TICKER2"],
-  "sentiment": "BULLISH", // Or BEARISH or NEUTRAL
-  "significance_score": 8, // Integer from 1 to 10
-  "reasoning": "Brief explanation"
+  "analyses": [
+    {
+      "ticker": "TICKER1",
+      "sentiment": "BULLISH", // Or BEARISH or NEUTRAL
+      "significance_score": 8, // Integer from 1 to 10
+      "reasoning": "Brief explanation specifically for this ticker"
+    }
+  ]
 }"""
 
     async with httpx.AsyncClient() as client:

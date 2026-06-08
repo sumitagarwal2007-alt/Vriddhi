@@ -84,23 +84,27 @@ async def handle_news(news):
         
     try:
         analysis = await ai.analyze_headline(headline)
-        print(f"[Agent BIRBAL] Analysis: {analysis.sentiment.value} (Score: {analysis.significance_score}) - {analysis.reasoning}")
+        print(f"[Agent BIRBAL] Headline processed. Found {len(analysis.analyses)} ticker(s) to evaluate.")
         
-        for ticker in analysis.tickers_found:
+        for ticker_analysis in analysis.analyses:
+            ticker = ticker_analysis.ticker
             is_eligible = md.is_eligible(ticker)
+            
+            print(f"  -> {ticker}: {ticker_analysis.sentiment.value} (Score: {ticker_analysis.significance_score})")
             
             await db.log_signal(
                 timestamp=timestamp,
                 raw_headline=headline,
                 extracted_ticker=ticker,
-                ai_sentiment=analysis.sentiment.value,
-                ai_reasoning=analysis.reasoning,
+                ai_sentiment=ticker_analysis.sentiment.value,
+                ai_reasoning=ticker_analysis.reasoning,
+                significance_score=ticker_analysis.significance_score,
                 is_eligible=int(is_eligible)
             )
             
-            if analysis.sentiment.value == "BULLISH" and is_eligible:
-                if analysis.significance_score < 7:
-                    print(f"[Prahari Loop] {ticker} ignored. Significance score {analysis.significance_score} is too low.")
+            if ticker_analysis.sentiment.value == "BULLISH" and is_eligible:
+                if ticker_analysis.significance_score < 7:
+                    print(f"[Prahari Loop] {ticker} ignored. Significance score {ticker_analysis.significance_score} is too low.")
                     continue
                     
                 if md.get_spy_performance() < -0.01:
@@ -160,6 +164,9 @@ async def run_prahari_loop():
                 pass
         return
             
+    print("[Prahari Loop] Waiting 15 seconds for Alpaca servers to purge old ghost connections...")
+    await asyncio.sleep(15)
+    
     while not shutdown_event.is_set():
         try:
             alpaca_stream = NewsDataStream(API_KEY, SECRET_KEY)
