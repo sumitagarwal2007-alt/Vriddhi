@@ -65,7 +65,7 @@ async function fetchPositions() {
                 activeList.innerHTML = data.active.map(p => `
                     <div class="pos-card ${p.unrealized_pl >= 0 ? 'profit' : 'loss'}">
                         <div class="pos-left">
-                            <div class="ticker">${p.ticker}</div>
+                            <div class="ticker">${p.ticker} <span style="font-size: 0.7em; color: rgba(255,255,255,0.5); font-weight: normal;">($${p.current_price.toFixed(2)})</span></div>
                             <div class="details">${p.qty.toFixed(4)} sh | Cost: $${p.cost_basis.toFixed(2)}</div>
                         </div>
                         <div class="pos-right">

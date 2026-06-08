@@ -108,6 +108,7 @@ def generate_news_table():
 def generate_positions_table():
     table = Table(show_header=True, header_style="bold yellow", expand=True)
     table.add_column("Ticker")
+    table.add_column("Price $")
     table.add_column("Shares")
     table.add_column("Spent $")
     table.add_column("P/L $")
@@ -126,6 +127,7 @@ def generate_positions_table():
                 ticker = p.symbol
                 qty = float(p.qty)
                 cost = float(p.cost_basis)
+                current_price = float(p.current_price)
                 pl = float(p.unrealized_pl)
                 
                 pl_color = "green" if pl >= 0 else "red"
@@ -138,6 +140,7 @@ def generate_positions_table():
                     
                 table.add_row(
                     ticker,
+                    f"${current_price:,.2f}",
                     f"{qty:.4f}",
                     f"${cost:,.2f}",
                     f"[{pl_color}]${pl:,.2f}[/{pl_color}]",
