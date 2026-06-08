@@ -15,9 +15,15 @@ async def init_db():
                 extracted_ticker TEXT,
                 ai_sentiment TEXT,
                 ai_reasoning TEXT,
-                is_eligible INTEGER
+                is_eligible INTEGER,
+                significance_score INTEGER
             )
         ''')
+        # Alpha V2 Upgrade: Add significance_score to signals_log
+        try:
+            await db.execute('ALTER TABLE signals_log ADD COLUMN significance_score INTEGER DEFAULT 0')
+        except sqlite3.OperationalError:
+            pass # Column already exists
         await db.execute('''
             CREATE TABLE IF NOT EXISTS transactions (
                 id INTEGER PRIMARY KEY,
@@ -64,12 +70,12 @@ async def init_db():
             
         await db.commit()
 
-async def log_signal(timestamp: str, raw_headline: str, extracted_ticker: str, ai_sentiment: str, ai_reasoning: str, is_eligible: int):
+async def log_signal(timestamp: str, raw_headline: str, extracted_ticker: str, ai_sentiment: str, ai_reasoning: str, is_eligible: int, significance_score: int = 0):
     async with aiosqlite.connect(DB_NAME) as db:
         await db.execute('''
-            INSERT INTO signals_log (timestamp, raw_headline, extracted_ticker, ai_sentiment, ai_reasoning, is_eligible)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ''', (timestamp, raw_headline, extracted_ticker, ai_sentiment, ai_reasoning, is_eligible))
+            INSERT INTO signals_log (timestamp, raw_headline, extracted_ticker, ai_sentiment, ai_reasoning, is_eligible, significance_score)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (timestamp, raw_headline, extracted_ticker, ai_sentiment, ai_reasoning, is_eligible, significance_score))
         await db.commit()
 
 async def log_transaction(timestamp: str, alpaca_order_id: str, ticker: str, action: str, share_qty: float, execution_price: float, order_type: str, status: str):
