@@ -12,3 +12,4 @@ cloudflared
 cloudflare.log
 web.log
 cloudflared.tgz
+logs/
