@@ -60,7 +60,7 @@ async def test_groq_burst():
                     "https://api.groq.com/openai/v1/chat/completions",
                     headers={"Authorization": f"Bearer {api_key}"},
                     json={
-                        "model": "llama3-8b-8192",
+                        "model": "llama-3.1-8b-instant",
                         "messages": [{"role": "user", "content": f"Test message {i}. Reply with a single word."}]
                     },
                     timeout=10.0
