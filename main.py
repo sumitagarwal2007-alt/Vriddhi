@@ -192,7 +192,11 @@ async def run_waitlist_loop():
                     continue
                     
                 target_time = datetime.fromisoformat(w['target_buy_time'])
-                if now >= target_time:
+                
+                # Fix for: can't compare offset-naive and offset-aware datetimes
+                current_time = now.astimezone() if target_time.tzinfo is not None else now
+                
+                if current_time >= target_time:
                     ticker = w['ticker']
                     initial_price = w['initial_price']
                     stop_percent = w['stop_percent']
