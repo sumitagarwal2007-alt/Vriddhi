@@ -70,20 +70,57 @@
             </div>
             
             <div id="active-positions" class="tab-content active-tab">
-                <div class="list-container" id="positions-list">
-                    <div class="empty-state">Loading positions...</div>
+                <div class="table-responsive" style="overflow-x: auto;">
+                    <table class="battlefield-table">
+                        <thead>
+                            <tr>
+                                <th>Ticker</th>
+                                <th class="txt-right">Price</th>
+                                <th class="txt-right">Position</th>
+                                <th class="txt-right">P/L</th>
+                                <th class="txt-right">Stop</th>
+                            </tr>
+                        </thead>
+                        <tbody id="positions-list">
+                            <tr><td colspan="5" class="empty-state">Loading positions...</td></tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
             
             <div id="waitlist-positions" class="tab-content">
-                <div class="list-container" id="waitlist-list">
-                    <div class="empty-state">Loading waitlist...</div>
+                <div class="table-responsive" style="overflow-x: auto;">
+                    <table class="battlefield-table">
+                        <thead>
+                            <tr>
+                                <th>Ticker</th>
+                                <th class="txt-right">Trigger</th>
+                                <th class="txt-right">Score</th>
+                                <th class="txt-right">Status / Timer</th>
+                            </tr>
+                        </thead>
+                        <tbody id="waitlist-list">
+                            <tr><td colspan="4" class="empty-state">Loading waitlist...</td></tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
             
             <div id="learning-positions" class="tab-content">
-                <div class="list-container" id="learning-list">
-                    <div class="empty-state">Loading trade feedback...</div>
+                <div class="table-responsive" style="overflow-x: auto;">
+                    <table class="battlefield-table">
+                        <thead>
+                            <tr>
+                                <th>Ticker</th>
+                                <th class="txt-right">Buy/Sell</th>
+                                <th class="txt-right">P/L %</th>
+                                <th>AI Critique</th>
+                            </tr>
+                        </thead>
+                        <tbody id="learning-list">
+                            <tr><td colspan="4" class="empty-state">Loading feedback...</td></tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </section>

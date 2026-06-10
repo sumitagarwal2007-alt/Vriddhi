@@ -309,3 +309,65 @@ body {
     70% { box-shadow: 0 0 0 6px rgba(102, 252, 241, 0); }
     100% { box-shadow: 0 0 0 0 rgba(102, 252, 241, 0); }
 }
+
+/* Battlefield V3 Table View Styles */
+.table-responsive {
+    max-height: 360px;
+    overflow-y: auto;
+}
+.battlefield-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    text-align: left;
+}
+.battlefield-table th {
+    font-family: 'Outfit', sans-serif;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #888;
+    padding: 10px 8px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    position: sticky;
+    top: 0;
+    background: var(--bg-color);
+    z-index: 10;
+}
+.battlefield-table td {
+    padding: 8px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    vertical-align: middle;
+}
+.battlefield-table tr:hover {
+    background: rgba(255,255,255,0.02);
+}
+.txt-right {
+    text-align: right !important;
+}
+.ticker-badge {
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--text-bright);
+}
+.small-detail {
+    font-size: 10px;
+    color: #666;
+    margin-top: 2px;
+}
+.stop-col {
+    color: var(--color-bear);
+    font-weight: 600;
+}
+.battlefield-table td:first-child {
+    border-left: 3px solid transparent;
+}
+.tr-profit td:first-child {
+    border-left-color: var(--color-bull);
+}
+.tr-loss td:first-child {
+    border-left-color: var(--color-bear);
+}
+.tr-waitlist td:first-child {
+    border-left-color: var(--accent-cyan);
+}

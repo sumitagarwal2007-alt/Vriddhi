@@ -68,41 +68,39 @@ async function fetchPositions() {
             // Render Active
             const activeList = document.getElementById('positions-list');
             if (data.active.length === 0) {
-                activeList.innerHTML = '<div class="empty-state">No active positions.</div>';
+                activeList.innerHTML = '<tr><td colspan="5" class="empty-state">No active positions.</td></tr>';
             } else {
                 activeList.innerHTML = data.active.map(p => `
-                    <div class="pos-card ${p.unrealized_pl >= 0 ? 'profit' : 'loss'}">
-                        <div class="pos-left">
-                            <div class="ticker">${p.ticker} <span style="font-size: 0.7em; color: rgba(255,255,255,0.5); font-weight: normal;">($${p.current_price.toFixed(2)})</span></div>
-                            <div class="details">${p.qty.toFixed(4)} sh | Cost: $${p.cost_basis.toFixed(2)}</div>
-                        </div>
-                        <div class="pos-right">
-                            <div class="pl ${p.unrealized_pl >= 0 ? 'val-positive' : 'val-negative'}">
-                                ${p.unrealized_pl >= 0 ? '+' : ''}$${p.unrealized_pl.toFixed(2)} (${p.unrealized_plpc.toFixed(2)}%)
-                            </div>
-                            <div class="stop">Stop: $${p.stop_price ? p.stop_price.toFixed(2) : 'N/A'}</div>
-                        </div>
-                    </div>
+                    <tr class="${p.unrealized_pl >= 0 ? 'tr-profit' : 'tr-loss'}">
+                        <td><span class="ticker-badge">${p.ticker}</span></td>
+                        <td class="txt-right">$${p.current_price.toFixed(2)}</td>
+                        <td class="txt-right">
+                            <div>${p.qty.toFixed(3)} sh</div>
+                            <div class="small-detail">Cost: $${p.cost_basis.toFixed(2)}</div>
+                        </td>
+                        <td class="txt-right ${p.unrealized_pl >= 0 ? 'val-positive' : 'val-negative'}">
+                            <div>${p.unrealized_pl >= 0 ? '+' : ''}$${p.unrealized_pl.toFixed(2)}</div>
+                            <div class="small-detail">${p.unrealized_plpc.toFixed(2)}%</div>
+                        </td>
+                        <td class="txt-right stop-col">$${p.stop_price ? p.stop_price.toFixed(2) : 'N/A'}</td>
+                    </tr>
                 `).join('');
             }
             
             // Render Waitlist
             const waitlistList = document.getElementById('waitlist-list');
             if (data.waitlist.length === 0) {
-                waitlistList.innerHTML = '<div class="empty-state">Waitlist is clear.</div>';
+                waitlistList.innerHTML = '<tr><td colspan="4" class="empty-state">Waitlist is clear.</td></tr>';
             } else {
                 waitlistList.innerHTML = data.waitlist.map(w => {
-                    const statusText = w.is_overnight ? `Pre-Market: ${w.target_buy_time.split('T')[1].substring(0,5)}` : `Waiting 3m: ${w.target_buy_time.split('T')[1].substring(0,8)}`;
+                    const statusText = w.is_overnight ? `Pre-Market: ${w.target_buy_time.split('T')[1].substring(0,5)}` : `3m Wait: ${w.target_buy_time.split('T')[1].substring(0,8)}`;
                     return `
-                    <div class="pos-card waitlist">
-                        <div class="pos-left">
-                            <div class="ticker">${w.ticker}</div>
-                            <div class="details">Trigger: $${w.initial_price.toFixed(2)}</div>
-                        </div>
-                        <div class="pos-right">
-                            <div class="stop">${statusText}</div>
-                        </div>
-                    </div>
+                    <tr class="tr-waitlist">
+                        <td><span class="ticker-badge">${w.ticker}</span></td>
+                        <td class="txt-right">$${w.initial_price.toFixed(2)}</td>
+                        <td class="txt-right"><span class="highlight-gold">${w.significance_score || 7}</span></td>
+                        <td class="txt-right small-detail">${statusText}</td>
+                    </tr>
                 `}).join('');
             }
         }
@@ -152,35 +150,32 @@ async function fetchFeedback() {
         if (data.status === 'success') {
             const list = document.getElementById('learning-list');
             if (data.data.length === 0) {
-                list.innerHTML = '<div class="empty-state">No trade feedback loaded yet.</div>';
+                list.innerHTML = '<tr><td colspan="4" class="empty-state">No trade feedback loaded yet.</td></tr>';
                 return;
             }
             
             list.innerHTML = data.data.map(f => {
-                const timeStr = f.timestamp.includes('T') ? f.timestamp.split('T')[1].substring(0,8) : f.timestamp;
                 const pnl = f.pnl_pct;
-                const pnlClass = pnl >= 0 ? 'profit' : 'loss';
+                const pnlClass = pnl >= 0 ? 'tr-profit' : 'tr-loss';
                 const pnlText = (pnl >= 0 ? '+' : '') + pnl.toFixed(2) + '%';
                 
                 return `
-                    <div class="pos-card ${pnlClass}">
-                        <div class="pos-left" style="width: 70%;">
-                            <div class="ticker">${f.ticker} <span style="font-size: 0.75em; color: rgba(255,255,255,0.5); font-weight: normal;">(Score: ${f.significance_score})</span></div>
-                            <div class="details" style="white-space: normal; line-height: 1.3; margin-top: 4px;">
-                                <strong style="color: var(--text-bright);">Catalyst:</strong> ${f.headline}<br/>
-                                <strong style="color: var(--text-bright);">Critique:</strong> ${f.reasoning}
-                            </div>
-                        </div>
-                        <div class="pos-right" style="width: 30%; display: flex; flex-direction: column; justify-content: center;">
-                            <div class="pl ${pnl >= 0 ? 'val-positive' : 'val-negative'}" style="font-size: 1.1em; font-weight: bold;">
-                                ${pnlText}
-                            </div>
-                            <div class="stop" style="margin-top: 4px; font-size: 0.85em; color: #888;">
-                                In: $${f.buy_price.toFixed(2)}<br/>
-                                Out: $${f.sell_price.toFixed(2)}
-                            </div>
-                        </div>
-                    </div>
+                    <tr class="${pnlClass}">
+                        <td>
+                            <span class="ticker-badge">${f.ticker}</span>
+                            <div class="small-detail" style="max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${f.headline}">${f.headline}</div>
+                        </td>
+                        <td class="txt-right">
+                            <div>$${f.sell_price.toFixed(2)}</div>
+                            <div class="small-detail">In: $${f.buy_price.toFixed(2)}</div>
+                        </td>
+                        <td class="txt-right ${pnl >= 0 ? 'val-positive' : 'val-negative'}" style="font-weight: bold;">
+                            ${pnlText}
+                        </td>
+                        <td style="font-size: 11px; max-width: 200px; line-height: 1.3;">
+                            <div style="font-style: italic; color: #aaa;" title="${f.reasoning}">${f.reasoning.length > 80 ? f.reasoning.substring(0, 80) + '...' : f.reasoning}</div>
+                        </td>
+                    </tr>
                 `;
             }).join('');
         }
