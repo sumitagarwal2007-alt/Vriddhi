@@ -92,6 +92,45 @@ async def handle_news(news):
             
             print(f"  -> {ticker}: {ticker_analysis.sentiment.value} (Score: {ticker_analysis.significance_score})")
             
+            tenali_approved = 1
+            tenali_critique = ""
+            tenali_score = 0
+            consensus_score = ticker_analysis.significance_score
+            
+            if ticker_analysis.sentiment.value == "BULLISH" and is_eligible:
+                print(f"[Prahari Loop] Invoking Agent TENALI for a devil's advocate audit on {ticker}...")
+                try:
+                    tenali_analysis = await ai.analyze_headline_tenali(headline, ticker, ticker_analysis.reasoning)
+                    print(f"[Agent TENALI] Audit Result: Approved={tenali_analysis.approved}, Score={tenali_analysis.significance_score}")
+                    print(f"[Agent TENALI] Critique: {tenali_analysis.critique}")
+                    tenali_approved = int(tenali_analysis.approved)
+                    tenali_critique = tenali_analysis.critique
+                    tenali_score = tenali_analysis.significance_score
+                except Exception as tenali_err:
+                    print(f"[Prahari Loop] Agent TENALI error: {tenali_err}. Falling back to automatic approval.")
+                    tenali_approved = 1
+                    tenali_critique = "Tenali offline - auto-approved"
+                    tenali_score = ticker_analysis.significance_score
+                
+                if not tenali_approved:
+                    print(f"[Prahari Loop] {ticker} REJECTED by Agent TENALI. Reason: {tenali_critique}")
+                    # Log the rejected signal with Tenali's reason
+                    await db.log_signal(
+                        timestamp=timestamp,
+                        raw_headline=headline,
+                        extracted_ticker=ticker,
+                        ai_sentiment=ticker_analysis.sentiment.value,
+                        ai_reasoning=ticker_analysis.reasoning,
+                        significance_score=ticker_analysis.significance_score,
+                        is_eligible=int(is_eligible),
+                        tenali_approved=0,
+                        tenali_critique=tenali_critique,
+                        tenali_score=tenali_score
+                    )
+                    continue
+                    
+                consensus_score = int((ticker_analysis.significance_score + tenali_score) / 2)
+                
             await db.log_signal(
                 timestamp=timestamp,
                 raw_headline=headline,
@@ -99,12 +138,15 @@ async def handle_news(news):
                 ai_sentiment=ticker_analysis.sentiment.value,
                 ai_reasoning=ticker_analysis.reasoning,
                 significance_score=ticker_analysis.significance_score,
-                is_eligible=int(is_eligible)
+                is_eligible=int(is_eligible),
+                tenali_approved=tenali_approved,
+                tenali_critique=tenali_critique,
+                tenali_score=tenali_score
             )
             
             if ticker_analysis.sentiment.value == "BULLISH" and is_eligible:
-                if ticker_analysis.significance_score < 7:
-                    print(f"[Prahari Loop] {ticker} ignored. Significance score {ticker_analysis.significance_score} is too low.")
+                if consensus_score < 7:
+                    print(f"[Prahari Loop] {ticker} ignored. Consensus significance score {consensus_score} is too low.")
                     continue
                     
                 if md.get_spy_performance() < -0.01:
@@ -141,7 +183,8 @@ async def handle_news(news):
                     target_buy_time=target_time,
                     headline=headline,
                     stop_percent=stop_percent,
-                    is_overnight=is_overnight
+                    is_overnight=is_overnight,
+                    significance_score=consensus_score
                 )
             
     except Exception as e:
@@ -201,6 +244,7 @@ async def run_waitlist_loop():
                     initial_price = w['initial_price']
                     stop_percent = w['stop_percent']
                     is_overnight = w.get('is_overnight', 0)
+                    sig_score = w.get('significance_score', 7)
                     
                     current_price = md.get_live_price(ticker)
                     if current_price <= 0:
@@ -220,14 +264,35 @@ async def run_waitlist_loop():
                         else:
                             print(f"[Night Watch] APPROVED {ticker}: Gap is {overnight_gap*100:.2f}%. Queueing Market Open Order.")
                     else:
-                        if current_price <= initial_price:
-                            print(f"[Waitlist] Fakeout detected for {ticker} ({initial_price} -> {current_price}). Dropping signal.")
+                        # V3 Momentum Confirmation Shield: At least +0.2% but not more than +2.0%
+                        momentum_pct = (current_price - initial_price) / initial_price
+                        if momentum_pct < 0.002:
+                            print(f"[Waitlist] Momentum too weak for {ticker} ({momentum_pct*100:.2f}%). Dropping signal.")
+                            await db.remove_from_waitlist(ticker)
+                            continue
+                        elif momentum_pct > 0.02:
+                            print(f"[Waitlist] Gap too high for {ticker} ({momentum_pct*100:.2f}%). Avoiding trap.")
                             await db.remove_from_waitlist(ticker)
                             continue
                         else:
-                            print(f"[Waitlist] Momentum Confirmed for {ticker}! ({initial_price} -> {current_price}). Executing Buy.")
+                            print(f"[Waitlist] Momentum Confirmed for {ticker}! (+{momentum_pct*100:.2f}%). Executing Buy.")
                     
-                    buy_budget = md.calculate_position_size(stop_percent)
+                    # V3 Dynamic Risk Sizing
+                    portfolio_equity = 10000.0
+                    if trading_client:
+                        try:
+                            account = trading_client.get_account()
+                            portfolio_equity = float(account.equity)
+                        except Exception as acc_err:
+                            print(f"[Waitlist] Error fetching account equity: {acc_err}. Using baseline $10,000.")
+                    
+                    spy_perf = md.get_spy_performance()
+                    buy_budget = md.calculate_position_size(
+                        stop_percent=stop_percent,
+                        significance_score=sig_score,
+                        portfolio_equity=portfolio_equity,
+                        spy_momentum=spy_perf
+                    )
                     qty = buy_budget / current_price
                     
                     order_id = "MOCK_ORDER"
@@ -268,7 +333,8 @@ async def run_waitlist_loop():
                             highest_tracked_price=current_price,
                             dynamic_stop_percent=stop_percent,
                             entry_time=timestamp,
-                            profit_taken=0
+                            profit_taken=0,
+                            significance_score=sig_score
                         )
                         notif.send_alert(
                             "🚨 Trade Executed (Buy)",
@@ -322,6 +388,18 @@ async def run_chanakya_loop():
                         except Exception as e:
                             print(f"[Alpaca API] Close all positions error: {e}")
                             
+                        try:
+                            positions = await db.get_active_positions()
+                            for pos in positions:
+                                ticker = pos['ticker']
+                                if ticker == 'SH':
+                                    continue
+                                current_price = md.get_live_price(ticker)
+                                if current_price > 0:
+                                    await db.log_trade_feedback(ticker, current_price, datetime.now().isoformat())
+                        except Exception as feedback_err:
+                            print(f"[Agent CHANAKYA] Error logging circuit breaker feedback: {feedback_err}")
+                            
                         await db.wipe_all_active_positions()
                         notif.send_alert(
                             "🚨 CIRCUIT BREAKER TRIPPED",
@@ -346,6 +424,17 @@ async def run_chanakya_loop():
                                     trading_client.close_all_positions(cancel_orders=True)
                                 except Exception as e:
                                     print(f"[Alpaca API] Event Liquidation error: {e}")
+                            try:
+                                positions = await db.get_active_positions()
+                                for pos in positions:
+                                    ticker = pos['ticker']
+                                    if ticker == 'SH':
+                                        continue
+                                    current_price = md.get_live_price(ticker)
+                                    if current_price > 0:
+                                        await db.log_trade_feedback(ticker, current_price, datetime.now().isoformat())
+                            except Exception as feedback_err:
+                                print(f"[Agent CHANAKYA] Error logging event liquidation feedback: {feedback_err}")
                             await db.wipe_all_active_positions()
                             notif.send_alert("⚠️ Pre-Event Liquidation", f"Liquidated all positions ahead of: {ev['name']}. Pausing engine for 30 minutes.", color=0xFFA500)
                             
@@ -421,107 +510,115 @@ async def run_chanakya_loop():
                 # Sleep 1.5 seconds per position to strictly respect Finnhub's 60 RPM free tier
                 await asyncio.sleep(1.5)
                 
-                ticker = pos['ticker']
-                highest_price = pos['highest_tracked_price']
-                stop_percent = pos['dynamic_stop_percent']
-                share_qty = pos['share_qty']
-                purchase_price = pos['purchase_price']
-                profit_taken = pos.get('profit_taken', 0)
-                
-                current_price = md.get_live_price(ticker)
-                if current_price <= 0:
-                    continue
-                
-                # Check Take-Profit (Scale Out)
-                if not profit_taken and current_price >= purchase_price * 1.04:
-                    print(f"[Agent CHANAKYA] {ticker} hit +4% profit target. Scaling out 50%!")
-                    sell_qty = share_qty / 2.0
+                try:
+                    highest_price = pos['highest_tracked_price']
+                    stop_percent = pos['dynamic_stop_percent']
+                    share_qty = pos['share_qty']
+                    purchase_price = pos['purchase_price']
+                    profit_taken = pos.get('profit_taken', 0)
                     
-                    order_id = "MOCK_SELL_HALF"
-                    status = "FILLED"
-                    if trading_client:
-                        try:
-                            req = MarketOrderRequest(
-                                symbol=ticker,
-                                qty=sell_qty,
-                                side=OrderSide.SELL,
-                                time_in_force=TimeInForce.DAY
+                    current_price = md.get_live_price(ticker)
+                    if current_price <= 0:
+                        continue
+                    
+                    # Check Take-Profit (Scale Out) - V3 Dynamic Take Profit
+                    sig_score = pos.get('significance_score', 7)
+                    tp_threshold = 1.06 if sig_score >= 9 else 1.035
+                    
+                    if not profit_taken and current_price >= purchase_price * tp_threshold:
+                        tp_pct_str = f"+{(tp_threshold-1)*100:.1f}%"
+                        print(f"[Agent CHANAKYA] {ticker} hit {tp_pct_str} profit target. Scaling out 50%!")
+                        sell_qty = share_qty / 2.0
+                        
+                        order_id = "MOCK_SELL_HALF"
+                        status = "FILLED"
+                        if trading_client:
+                            try:
+                                req = MarketOrderRequest(
+                                    symbol=ticker,
+                                    qty=sell_qty,
+                                    side=OrderSide.SELL,
+                                    time_in_force=TimeInForce.DAY
+                                )
+                                order = trading_client.submit_order(order_data=req)
+                                order_id = str(order.id)
+                                status = order.status.value
+                            except Exception as e:
+                                print(f"[Alpaca API] Take-Profit Sell error: {e}")
+                                status = "FAILED"
+                        else:
+                            print(f"[Agent CHANAKYA] Mocking take-profit sell order for {ticker}")
+                        
+                        if status != "FAILED":
+                            timestamp = datetime.now().isoformat()
+                            await db.log_transaction(
+                                timestamp=timestamp,
+                                alpaca_order_id=order_id,
+                                ticker=ticker,
+                                action="SELL",
+                                share_qty=sell_qty,
+                                execution_price=current_price,
+                                order_type="MARKET",
+                                status=status
                             )
-                            order = trading_client.submit_order(order_data=req)
-                            order_id = str(order.id)
-                            status = order.status.value
-                        except Exception as e:
-                            print(f"[Alpaca API] Take-Profit Sell error: {e}")
-                            status = "FAILED"
-                    else:
-                        print(f"[Agent CHANAKYA] Mocking take-profit sell order for {ticker}")
-                    
-                    if status != "FAILED":
-                        timestamp = datetime.now().isoformat()
-                        await db.log_transaction(
-                            timestamp=timestamp,
-                            alpaca_order_id=order_id,
-                            ticker=ticker,
-                            action="SELL",
-                            share_qty=sell_qty,
-                            execution_price=current_price,
-                            order_type="MARKET",
-                            status=status
-                        )
-                        await db.mark_profit_taken(ticker, sell_qty)
-                        notif.send_alert(
-                            "💰 Profit Taken (+4%)",
-                            f"Agent Chanakya scaled out 50% of **{ticker}** at ${current_price:.2f}.",
-                            0x00FF00
-                        )
-                    continue
-                
-                if current_price > highest_price:
-                    await db.update_highest_price(ticker, current_price)
-                    highest_price = current_price
-                
-                active_stop_percent = 0.015 if is_fear_mode else stop_percent
-                stop_price = highest_price * (1 - active_stop_percent)
-                if current_price <= stop_price:
-                    print(f"[Agent CHANAKYA] {ticker} dropped below trailing stop ({stop_price:.2f}). Liquidating!")
-                    
-                    order_id = "MOCK_SELL_ORDER"
-                    status = "FILLED"
-                    if trading_client:
-                        try:
-                            req = MarketOrderRequest(
-                                symbol=ticker,
-                                qty=share_qty,
-                                side=OrderSide.SELL,
-                                time_in_force=TimeInForce.DAY
+                            await db.log_trade_feedback(ticker, current_price, timestamp)
+                            await db.mark_profit_taken(ticker, sell_qty)
+                            notif.send_alert(
+                                f"💰 Profit Taken ({tp_pct_str})",
+                                f"Agent Chanakya scaled out 50% of **{ticker}** at ${current_price:.2f}.",
+                                0x00FF00
                             )
-                            order = trading_client.submit_order(order_data=req)
-                            order_id = str(order.id)
-                            status = order.status.value
-                        except Exception as e:
-                            print(f"[Alpaca API] Sell error: {e}")
-                            status = "FAILED"
-                    else:
-                        print(f"[Agent CHANAKYA] Mocking sell order for {ticker}")
+                        continue
                     
-                    if status != "FAILED":
-                        timestamp = datetime.now().isoformat()
-                        await db.log_transaction(
-                            timestamp=timestamp,
-                            alpaca_order_id=order_id,
-                            ticker=ticker,
-                            action="SELL",
-                            share_qty=share_qty,
-                            execution_price=current_price,
-                            order_type="MARKET",
-                            status=status
-                        )
-                        await db.remove_active_position(ticker)
-                        notif.send_alert(
-                            "⚠️ Emergency Liquidation (Sell)",
-                            f"Agent Chanakya triggered trailing stop for **{ticker}** at ${current_price:.2f}.",
-                            0xFF0000
-                        )
+                    if current_price > highest_price:
+                        await db.update_highest_price(ticker, current_price)
+                        highest_price = current_price
+                    
+                    active_stop_percent = 0.015 if is_fear_mode else stop_percent
+                    stop_price = highest_price * (1 - active_stop_percent)
+                    if current_price <= stop_price:
+                        print(f"[Agent CHANAKYA] {ticker} dropped below trailing stop ({stop_price:.2f}). Liquidating!")
+                        
+                        order_id = "MOCK_SELL_ORDER"
+                        status = "FILLED"
+                        if trading_client:
+                            try:
+                                req = MarketOrderRequest(
+                                    symbol=ticker,
+                                    qty=share_qty,
+                                    side=OrderSide.SELL,
+                                    time_in_force=TimeInForce.DAY
+                                )
+                                order = trading_client.submit_order(order_data=req)
+                                order_id = str(order.id)
+                                status = order.status.value
+                            except Exception as e:
+                                print(f"[Alpaca API] Sell error: {e}")
+                                status = "FAILED"
+                        else:
+                            print(f"[Agent CHANAKYA] Mocking sell order for {ticker}")
+                        
+                        if status != "FAILED":
+                            timestamp = datetime.now().isoformat()
+                            await db.log_transaction(
+                                timestamp=timestamp,
+                                alpaca_order_id=order_id,
+                                ticker=ticker,
+                                action="SELL",
+                                share_qty=share_qty,
+                                execution_price=current_price,
+                                order_type="MARKET",
+                                status=status
+                            )
+                            await db.log_trade_feedback(ticker, current_price, timestamp)
+                            await db.remove_active_position(ticker)
+                            notif.send_alert(
+                                "⚠️ Emergency Liquidation (Sell)",
+                                f"Agent Chanakya triggered trailing stop for **{ticker}** at ${current_price:.2f}.",
+                                0xFF0000
+                            )
+                except Exception as pos_err:
+                    print(f"[Agent CHANAKYA] Error tracking position {ticker}: {pos_err}")
             
         except Exception as e:
             print(f"[Agent CHANAKYA] Error: {e}")

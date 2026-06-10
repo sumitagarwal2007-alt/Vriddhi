@@ -161,6 +161,32 @@ def api_positions():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
+@app.route('/api/feedback')
+def api_feedback():
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM trade_feedback ORDER BY timestamp DESC LIMIT 15")
+        rows = cursor.fetchall()
+        conn.close()
+        
+        feedback_list = []
+        for row in rows:
+            feedback_list.append({
+                "ticker": row['ticker'],
+                "headline": row['headline'],
+                "sentiment": row['sentiment'],
+                "significance_score": row['significance_score'],
+                "reasoning": row['reasoning'],
+                "buy_price": row['buy_price'],
+                "sell_price": row['sell_price'],
+                "pnl_pct": row['pnl_pct'] * 100 if row['pnl_pct'] is not None else 0.0,
+                "timestamp": row['timestamp']
+            })
+        return jsonify({"status": "success", "data": feedback_list})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 if __name__ == '__main__':
     # Bind to 0.0.0.0 to allow access from other devices on the same WiFi
     app.run(host='0.0.0.0', port=8000, debug=True)

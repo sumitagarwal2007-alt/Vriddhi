@@ -2,8 +2,16 @@ function switchTab(tabId) {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active-tab'));
     
-    event.target.classList.add('active');
-    document.getElementById(`${tabId}-positions`).classList.add('active-tab');
+    // Find the button that was clicked
+    const btn = Array.from(document.querySelectorAll('.tab-btn')).find(b => b.getAttribute('onclick').includes(tabId));
+    if (btn) {
+        btn.classList.add('active');
+    }
+    
+    const target = document.getElementById(`${tabId}-positions`);
+    if (target) {
+        target.classList.add('active-tab');
+    }
 }
 
 async function fetchStats() {
@@ -136,11 +144,57 @@ async function fetchNews() {
     }
 }
 
+async function fetchFeedback() {
+    try {
+        const res = await fetch('/api/feedback');
+        const data = await res.json();
+        
+        if (data.status === 'success') {
+            const list = document.getElementById('learning-list');
+            if (data.data.length === 0) {
+                list.innerHTML = '<div class="empty-state">No trade feedback loaded yet.</div>';
+                return;
+            }
+            
+            list.innerHTML = data.data.map(f => {
+                const timeStr = f.timestamp.includes('T') ? f.timestamp.split('T')[1].substring(0,8) : f.timestamp;
+                const pnl = f.pnl_pct;
+                const pnlClass = pnl >= 0 ? 'profit' : 'loss';
+                const pnlText = (pnl >= 0 ? '+' : '') + pnl.toFixed(2) + '%';
+                
+                return `
+                    <div class="pos-card ${pnlClass}">
+                        <div class="pos-left" style="width: 70%;">
+                            <div class="ticker">${f.ticker} <span style="font-size: 0.75em; color: rgba(255,255,255,0.5); font-weight: normal;">(Score: ${f.significance_score})</span></div>
+                            <div class="details" style="white-space: normal; line-height: 1.3; margin-top: 4px;">
+                                <strong style="color: var(--text-bright);">Catalyst:</strong> ${f.headline}<br/>
+                                <strong style="color: var(--text-bright);">Critique:</strong> ${f.reasoning}
+                            </div>
+                        </div>
+                        <div class="pos-right" style="width: 30%; display: flex; flex-direction: column; justify-content: center;">
+                            <div class="pl ${pnl >= 0 ? 'val-positive' : 'val-negative'}" style="font-size: 1.1em; font-weight: bold;">
+                                ${pnlText}
+                            </div>
+                            <div class="stop" style="margin-top: 4px; font-size: 0.85em; color: #888;">
+                                In: $${f.buy_price.toFixed(2)}<br/>
+                                Out: $${f.sell_price.toFixed(2)}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+    } catch (e) {
+        console.error("Feedback error", e);
+    }
+}
+
 function updateAll() {
     fetchStats();
     fetchKosh();
     fetchPositions();
     fetchNews();
+    fetchFeedback();
 }
 
 // Initial fetch
