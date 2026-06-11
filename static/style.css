@@ -381,6 +381,7 @@ body {
     overflow: hidden;
     margin-bottom: 10px;
     transition: all 0.25s ease-in-out;
+    flex-shrink: 0;
 }
 .learn-card.profit { border-left-color: var(--color-bull); }
 .learn-card.loss { border-left-color: var(--color-bear); }
