@@ -412,8 +412,26 @@ function updateAll() {
     fetchLessons();
 }
 
+function toggleLessonsBanner() {
+    const banner = document.getElementById('lessons-banner');
+    const toggleText = document.getElementById('lessons-toggle-text');
+    const toggleChevron = document.getElementById('lessons-toggle-chevron');
+    
+    if (!banner || !toggleText || !toggleChevron) return;
+    
+    const isCollapsed = banner.classList.toggle('collapsed');
+    if (isCollapsed) {
+        toggleText.textContent = 'Expand';
+        toggleChevron.style.transform = 'rotate(0deg)';
+    } else {
+        toggleText.textContent = 'Collapse';
+        toggleChevron.style.transform = 'rotate(180deg)';
+    }
+}
+
 // Initial fetch
 updateAll();
 
 // Poll every 3 seconds
 setInterval(updateAll, 3000);
+
