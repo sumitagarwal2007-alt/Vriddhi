@@ -52,8 +52,17 @@ def main():
             # Detect soft errors
             line_lower = line.lower()
             if " error" in line_lower or "error:" in line_lower:
-                # Ignore self-recovering soft network errors or API fallbacks to prevent alert fatigue
-                if any(x in line_lower for x in ["connection error on attempt", "http error", "rate limit", "clienterror detected. falling back"]):
+                # Ignore self-recovering soft network errors, API fallbacks, or caught non-fatal loop retries to prevent alert fatigue
+                if any(x in line_lower for x in [
+                    "connection error on attempt", 
+                    "http error", 
+                    "rate limit", 
+                    "clienterror detected. falling back",
+                    "retryerror",
+                    "servererror",
+                    "agent tenali error",
+                    "error processing news"
+                ]):
                     continue
                 current_time = time.time()
                 if current_time - LAST_ALERT_TIME > ALERT_COOLDOWN:
