@@ -163,10 +163,22 @@ def api_positions():
 
 @app.route('/api/feedback')
 def api_feedback():
+    from flask import request
     try:
+        limit = request.args.get('limit', 15, type=int)
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM trade_feedback ORDER BY timestamp DESC LIMIT 15")
+        
+        # Get total trades count
+        cursor.execute("SELECT COUNT(*) FROM trade_feedback")
+        total_count = cursor.fetchone()[0]
+        
+        # Query trades with limit if limit > 0
+        if limit > 0:
+            cursor.execute("SELECT * FROM trade_feedback ORDER BY timestamp DESC LIMIT ?", (limit,))
+        else:
+            cursor.execute("SELECT * FROM trade_feedback ORDER BY timestamp DESC")
+            
         rows = cursor.fetchall()
         conn.close()
         
@@ -190,7 +202,35 @@ def api_feedback():
                 "tenali_critique": tenali_critique,
                 "tenali_score": tenali_score
             })
-        return jsonify({"status": "success", "data": feedback_list})
+        return jsonify({
+            "status": "success", 
+            "data": feedback_list,
+            "total": total_count
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/lessons')
+def api_lessons():
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM daily_lessons ORDER BY date DESC LIMIT 1")
+        row = cursor.fetchone()
+        conn.close()
+        
+        if row:
+            return jsonify({
+                "status": "success",
+                "date": row['date'],
+                "lessons": row['lessons']
+            })
+        else:
+            return jsonify({
+                "status": "success",
+                "date": "",
+                "lessons": ""
+            })
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 

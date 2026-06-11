@@ -628,6 +628,55 @@ async def run_chanakya_loop():
         except asyncio.TimeoutError:
             pass
 
+async def run_premarket_reflection_loop():
+    """Agent GURU - Pre-Market Self-Learning Reflection loop.
+    Automatically identifies and reflects on all completed trading days that lack reflection lessons.
+    """
+    try:
+        from zoneinfo import ZoneInfo
+    except ImportError:
+        import pytz as tz
+        ZoneInfo = lambda x: tz.timezone(x)
+        
+    eastern = ZoneInfo('US/Eastern')
+    
+    while not shutdown_event.is_set():
+        try:
+            # 1. Get all unanalyzed trade dates
+            unanalyzed_dates = await db.get_unanalyzed_trade_dates()
+            now_est = datetime.now(eastern)
+            current_date_str = now_est.strftime('%Y-%m-%d')
+            
+            for date_str in unanalyzed_dates:
+                # Check if the date is fully completed
+                is_completed = False
+                if date_str < current_date_str:
+                    is_completed = True
+                elif date_str == current_date_str:
+                    # Completed if current time is after 4:05 PM EST
+                    if now_est.hour > 16 or (now_est.hour == 16 and now_est.minute >= 5):
+                        is_completed = True
+                        
+                if is_completed:
+                    print(f"[Agent GURU] No post-mortem lessons found for completed trade date {date_str}. Starting retrospective analysis...")
+                    lessons_text = await ai.generate_daily_reflective_lessons(date_str)
+                    print(f"[Agent GURU] Retrospective analysis complete for {date_str}!")
+                    notif.send_alert(
+                        "🧠 Daily Self-Learning Post-Mortem",
+                        f"Agent GURU completed retrospective analysis on trades from **{date_str}**:\n\n{lessons_text}",
+                        0x8A2BE2
+                    )
+                    # Brief pause between reflections to prevent API rate limits if catching up on multiple days
+                    await asyncio.sleep(5)
+        except Exception as e:
+            print(f"[Agent GURU] Error in self-learning loop: {e}")
+            
+        # Check every 15 minutes
+        try:
+            await asyncio.wait_for(shutdown_event.wait(), timeout=900)
+        except asyncio.TimeoutError:
+            pass
+
 async def run_eod_report_loop():
     """Agent SURYA - End of Day Reporting. Sends a Discord summary at 4:05 PM EST."""
     try:
@@ -688,7 +737,8 @@ async def main():
         run_prahari_loop(),
         run_waitlist_loop(),
         run_chanakya_loop(),
-        run_eod_report_loop()
+        run_eod_report_loop(),
+        run_premarket_reflection_loop()
     )
     print("[Orchestrator] Shutdown complete.")
 

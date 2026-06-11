@@ -34,6 +34,7 @@ import database as db
 async def build_feedback_context() -> str:
     try:
         feedback = await db.get_recent_feedback(limit=15)
+        latest_lessons = await db.get_latest_daily_lessons()
     except Exception as e:
         print(f"[Agent BIRBAL] Error fetching trade feedback: {e}")
         return ""
@@ -58,6 +59,9 @@ async def build_feedback_context() -> str:
     context = "\n### CRITICAL: PAST PERFORMANCE FEEDBACK (SELF-LEARNING)\n"
     context += "You must learn from the outcomes of your previous trades. Avoid making the same classification mistakes.\n"
     
+    if latest_lessons:
+        context += f"\nDYNAMIC TRADING STRATEGY RULES GENERATED PRE-MARKET:\n{latest_lessons}\n"
+        
     if losses:
         context += "\nRECENT TRADES THAT RESULTED IN LOSSES (DO NOT repeat these mistakes):\n"
         for l in losses[:8]:
@@ -225,3 +229,102 @@ async def analyze_headline_tenali(headline: str, ticker: str, birbal_reasoning: 
     except ClientError as e:
         print(f"[Agent TENALI] Gemini API Rate Limit or ClientError detected. Falling back to Groq Llama 3...")
         return await _analyze_tenali_with_groq(headline, ticker, birbal_reasoning)
+
+
+import aiosqlite
+import sqlite3
+
+async def generate_daily_reflective_lessons(trade_date: str) -> str:
+    """Summarizes trades closed on trade_date and prompts Gemini/Llama to generate actionable rule feedback."""
+    trades = []
+    async with aiosqlite.connect(db.DB_NAME) as conn:
+        conn.row_factory = aiosqlite.Row
+        async with conn.execute("SELECT * FROM trade_feedback WHERE DATE(timestamp) = ? ORDER BY timestamp ASC", (trade_date,)) as cursor:
+            rows = await cursor.fetchall()
+            trades = [dict(r) for r in rows]
+            
+    if not trades:
+        return "No trades executed on this date."
+        
+    # Summarize trades
+    wins = 0
+    losses = 0
+    total_pnl = 0.0
+    trade_details = ""
+    
+    for t in trades:
+        pnl = t['pnl_pct'] * 100
+        if pnl >= 0:
+            wins += 1
+        else:
+            losses += 1
+        total_pnl += pnl
+        trade_details += f"- Ticker {t['ticker']} | PnL: {pnl:.2f}% | Buy: ${t['buy_price']:.2f} | Sell: ${t['sell_price']:.2f} | Catalyst: {t['headline']} | Birbal Score: {t['significance_score']}/10 | Tenali Score: {t.get('tenali_score', 0)}/10 | Critique: {t.get('tenali_critique', 'N/A')}\n"
+        
+    avg_pnl = total_pnl / len(trades)
+    
+    summary_report = f"""
+    Trade Summary for Date: {trade_date}
+    Total Trades: {len(trades)} (Wins: {wins} | Losses: {losses})
+    Average Trade Performance: {avg_pnl:.2f}%
+    
+    Trade Details:
+    {trade_details}
+    """
+    
+    system_prompt = """You are the Master Trading Strategist for Vriddhi Quant. 
+    Review the trading post-mortem report and identify mistakes or patterns of success/failures. 
+    Write exactly 4-5 bullet points of clear, actionable rules/lessons (in standard markdown formatting) for Agent Birbal and Agent Tenali to follow in today's trading loop.
+    Focus on correcting stop-loss parameters, catalyst conviction, or sentiment classification errors. 
+    Make the rules general to stock categories or catalyst characteristics; DO NOT mention specific stock tickers in the lessons (e.g. write 'avoid minor routine partnership announcements' instead of 'never buy TMUS'). Keep it extremely concise and direct."""
+    
+    user_prompt = f"Here is the trade report:\n{summary_report}\n\nTask: Output a raw markdown block containing the 4-5 actionable lessons for today's trading."
+    
+    try:
+        c = get_client()
+        response = await c.aio.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=user_prompt,
+            config=types.GenerateContentConfig(
+                system_instruction=system_prompt,
+                temperature=0.2,
+            ),
+        )
+        lessons_text = response.text
+    except Exception as e:
+        print(f"[Self-Learning Orchestrator] Gemini error: {e}. Falling back to Groq Llama 3 for reflection...")
+        lessons_text = await _generate_lessons_with_groq(system_prompt, user_prompt)
+        
+    # Save lessons to database
+    await db.save_daily_lessons(trade_date, lessons_text)
+    return lessons_text
+
+async def _generate_lessons_with_groq(system_prompt: str, user_prompt: str) -> str:
+    api_key = os.getenv("GROQ_API_KEY")
+    if not api_key:
+        return "Groq key missing - could not generate lessons."
+        
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "model": "llama-3.1-8b-instant",
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt}
+                    ],
+                    "temperature": 0.2
+                },
+                timeout=12.0
+            )
+            response.raise_for_status()
+            data = response.json()
+            return data["choices"][0]["message"]["content"]
+        except Exception as e:
+            print(f"[Self-Learning Orchestrator] Groq error: {e}")
+            return "Error generating lessons via Groq Llama 3."

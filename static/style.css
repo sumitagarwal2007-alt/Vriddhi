@@ -471,6 +471,79 @@ body {
     border-color: rgba(255, 51, 102, 0.1);
 }
 
+/* Left Column Container for Mobile stacking */
+.dashboard-left {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+/* Learning Controls Bar */
+.learning-controls-bar {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+.learning-controls-bar input {
+    flex: 1;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    padding: 8px 12px;
+    color: var(--text-bright);
+    font-size: 12px;
+    font-family: 'Inter', sans-serif;
+    outline: none;
+    transition: border-color 0.2s;
+}
+.learning-controls-bar input:focus {
+    border-color: var(--accent-cyan);
+}
+.learning-controls-bar select {
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    padding: 8px 12px;
+    color: var(--text-main);
+    font-size: 12px;
+    font-family: 'Inter', sans-serif;
+    outline: none;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.learning-controls-bar select:focus {
+    border-color: var(--accent-cyan);
+    color: var(--text-bright);
+}
+
+/* Learning Filter Row */
+.learning-filter-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+.filter-pill {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    color: var(--text-main);
+    padding: 6px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.filter-pill:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-bright);
+}
+.filter-pill.active {
+    background: rgba(69, 162, 158, 0.15);
+    border-color: var(--accent-cyan);
+    color: var(--accent-cyan);
+    box-shadow: 0 0 6px rgba(102, 252, 241, 0.15);
+}
+
 /* Responsive Multi-Column Layout for Desktop/Tablet */
 @media (min-width: 992px) {
     .container {
@@ -481,24 +554,13 @@ body {
         align-items: start;
     }
     
-    header {
+    .dashboard-left {
         grid-column: 1;
-        grid-row: 1;
-    }
-    
-    .kosh-panel {
-        grid-column: 1;
-        grid-row: 2;
-    }
-    
-    .battlefield-panel {
-        grid-column: 1;
-        grid-row: 3;
+        gap: 20px;
     }
     
     .intelligence-panel {
         grid-column: 2;
-        grid-row: 1 / span 3;
         display: flex;
         flex-direction: column;
         align-self: stretch;
@@ -520,4 +582,81 @@ body {
         background: rgba(255, 255, 255, 0.15);
         border-radius: 4px;
     }
+}
+
+/* Load More Container & Buttons */
+.load-more-container {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+    margin-bottom: 5px;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.load-more-btn, .show-all-btn {
+    background: rgba(69, 162, 158, 0.1);
+    border: 1px solid var(--glass-border);
+    color: var(--accent-cyan);
+    padding: 8px 16px;
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: 'Inter', sans-serif;
+    flex: 1;
+    text-align: center;
+}
+.load-more-btn:hover, .show-all-btn:hover {
+    background: rgba(69, 162, 158, 0.2);
+    border-color: var(--accent-cyan);
+    box-shadow: 0 0 8px rgba(102, 252, 241, 0.2);
+}
+.show-all-btn {
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text-main);
+    border-color: rgba(255, 255, 255, 0.05);
+}
+.show-all-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-bright);
+    border-color: rgba(255, 255, 255, 0.15);
+    box-shadow: none;
+}
+
+/* Lessons Banner (Self-Learning Daily Rules) */
+.lessons-banner {
+    background: rgba(138, 43, 226, 0.06);
+    border: 1px solid rgba(138, 43, 226, 0.2);
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin-bottom: 12px;
+    box-shadow: 0 4px 15px rgba(138, 43, 226, 0.05);
+    flex-shrink: 0;
+}
+.lessons-banner-header {
+    font-family: 'Outfit', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    color: #c084fc;
+    margin-bottom: 8px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+.lessons-banner-content {
+    font-size: 11.5px;
+    line-height: 1.5;
+    color: var(--text-main);
+}
+.lessons-banner-content ul, .lessons-banner-content ol {
+    margin-left: 14px;
+}
+.lessons-banner-content li {
+    margin-bottom: 6px;
+}
+.lessons-banner-content li:last-child {
+    margin-bottom: 0;
+}
+.lessons-banner-content p {
+    margin-bottom: 6px;
 }

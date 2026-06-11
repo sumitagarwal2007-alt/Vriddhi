@@ -118,7 +118,32 @@ async def init_db():
             await db.execute('ALTER TABLE trade_feedback ADD COLUMN tenali_score INTEGER DEFAULT 0')
         except sqlite3.OperationalError:
             pass
+            
+        # Self-Learning Upgrade: Add daily_lessons table to store pre-market reflection insights
+        await db.execute('''
+            CREATE TABLE IF NOT EXISTS daily_lessons (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                date TEXT UNIQUE,
+                lessons TEXT
+            )
+        ''')
         await db.commit()
+
+
+async def save_daily_lessons(date_str: str, lessons_text: str):
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute('''
+            INSERT OR REPLACE INTO daily_lessons (date, lessons)
+            VALUES (?, ?)
+        ''', (date_str, lessons_text))
+        await db.commit()
+
+async def get_latest_daily_lessons() -> Optional[str]:
+    async with aiosqlite.connect(DB_NAME) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute('SELECT lessons FROM daily_lessons ORDER BY date DESC LIMIT 1') as cursor:
+            row = await cursor.fetchone()
+            return row['lessons'] if row else None
 
 
 async def log_signal(timestamp: str, raw_headline: str, extracted_ticker: str, ai_sentiment: str, ai_reasoning: str, is_eligible: int, significance_score: int = 0, tenali_approved: int = 1, tenali_critique: str = "", tenali_score: int = 0):
@@ -244,4 +269,31 @@ async def get_recent_feedback(limit: int = 10) -> List[Dict[str, Any]]:
         async with db.execute('SELECT * FROM trade_feedback ORDER BY timestamp DESC LIMIT ?', (limit,)) as cursor:
             rows = await cursor.fetchall()
             return [dict(row) for row in rows]
+
+async def get_latest_trade_date() -> Optional[str]:
+    async with aiosqlite.connect(DB_NAME) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT DATE(timestamp) as trade_date FROM trade_feedback ORDER BY timestamp DESC LIMIT 1") as cursor:
+            row = await cursor.fetchone()
+            return row['trade_date'] if row else None
+
+async def get_lessons_for_date(trade_date: str) -> Optional[str]:
+    async with aiosqlite.connect(DB_NAME) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT lessons FROM daily_lessons WHERE date = ?", (trade_date,)) as cursor:
+            row = await cursor.fetchone()
+            return row['lessons'] if row else None
+
+async def get_unanalyzed_trade_dates() -> List[str]:
+    async with aiosqlite.connect(DB_NAME) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT DISTINCT DATE(timestamp) as trade_date "
+            "FROM trade_feedback "
+            "WHERE DATE(timestamp) NOT IN (SELECT date FROM daily_lessons) "
+            "ORDER BY trade_date ASC"
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [row['trade_date'] for row in rows]
+
 

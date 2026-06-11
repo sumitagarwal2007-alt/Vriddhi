@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Vriddhi | God's Eye</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Outfit:wght@500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=102">
+    <link rel="stylesheet" href="/static/style.css?v=105">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 </head>
@@ -13,105 +13,129 @@
     <div class="glow-bg"></div>
     <div class="container">
         
-        <!-- Header -->
-        <header class="glass-panel">
-            <div class="header-top">
-                <h1 class="gradient-text">VRIDDHI <span>QUANT</span></h1>
-                <div class="status-badge" id="market-status">
-                    <span class="dot"></span> <span id="market-text">Loading...</span>
+        <!-- Left Column Container -->
+        <div class="dashboard-left">
+            <!-- Header -->
+            <header class="glass-panel">
+                <div class="header-top">
+                    <h1 class="gradient-text">VRIDDHI <span>QUANT</span></h1>
+                    <div class="status-badge" id="market-status">
+                        <span class="dot"></span> <span id="market-text">Loading...</span>
+                    </div>
                 </div>
-            </div>
-            <div class="stats-row">
-                <div class="stat-box">
-                    <span class="label">Realized P/L</span>
-                    <span class="value" id="total-pnl">$0.00</span>
+                <div class="stats-row">
+                    <div class="stat-box">
+                        <span class="label">Realized P/L</span>
+                        <span class="value" id="total-pnl">$0.00</span>
+                    </div>
+                    <div class="stat-box">
+                        <span class="label">Win Rate</span>
+                        <span class="value" id="win-rate">0.0%</span>
+                    </div>
+                    <div class="stat-box">
+                        <span class="label">Trades</span>
+                        <span class="value" id="total-trades">0</span>
+                    </div>
                 </div>
-                <div class="stat-box">
-                    <span class="label">Win Rate</span>
-                    <span class="value" id="win-rate">0.0%</span>
-                </div>
-                <div class="stat-box">
-                    <span class="label">Trades</span>
-                    <span class="value" id="total-trades">0</span>
-                </div>
-            </div>
-        </header>
+            </header>
 
-        <!-- KOSH (Treasury) -->
-        <section class="glass-panel kosh-panel">
-            <div class="panel-header">
-                <h2>💰 The Kosh (Treasury)</h2>
-            </div>
-            <div class="kosh-grid">
-                <div class="kosh-item">
-                    <span class="label">Portfolio Value</span>
-                    <span class="value highlight-gold" id="kosh-value">$0.00</span>
+            <!-- KOSH (Treasury) -->
+            <section class="glass-panel kosh-panel">
+                <div class="panel-header">
+                    <h2>💰 The Kosh (Treasury)</h2>
                 </div>
-                <div class="kosh-item">
-                    <span class="label">Cash Left</span>
-                    <span class="value" id="kosh-cash">$0.00</span>
+                <div class="kosh-grid">
+                    <div class="kosh-item">
+                        <span class="label">Portfolio Value</span>
+                        <span class="value highlight-gold" id="kosh-value">$0.00</span>
+                    </div>
+                    <div class="kosh-item">
+                        <span class="label">Cash Left</span>
+                        <span class="value" id="kosh-cash">$0.00</span>
+                    </div>
+                    <div class="kosh-item">
+                        <span class="label">Buying Power</span>
+                        <span class="value" id="kosh-bp">$0.00</span>
+                    </div>
                 </div>
-                <div class="kosh-item">
-                    <span class="label">Buying Power</span>
-                    <span class="value" id="kosh-bp">$0.00</span>
-                </div>
-            </div>
-        </section>
+            </section>
 
-        <!-- The Battlefield (Positions, Waitlist, Self-Learning) -->
-        <section class="glass-panel battlefield-panel">
-            <div class="panel-header">
-                <h2>⚔️ The Battlefield</h2>
-                <div class="tab-switcher">
-                    <button class="tab-btn active" onclick="switchTab('active')">Active</button>
-                    <button class="tab-btn" onclick="switchTab('waitlist')">Waitlist</button>
-                    <button class="tab-btn" onclick="switchTab('learning')">Learning</button>
+            <!-- The Battlefield (Positions, Waitlist, Self-Learning) -->
+            <section class="glass-panel battlefield-panel">
+                <div class="panel-header">
+                    <h2>⚔️ The Battlefield</h2>
+                    <div class="tab-switcher">
+                        <button class="tab-btn active" onclick="switchTab('active')">Active</button>
+                        <button class="tab-btn" onclick="switchTab('waitlist')">Waitlist</button>
+                        <button class="tab-btn" onclick="switchTab('learning')">Learning</button>
+                    </div>
                 </div>
-            </div>
-            
-            <div id="active-positions" class="tab-content active-tab">
-                <div class="table-responsive" style="overflow-x: auto;">
-                    <table class="battlefield-table">
-                        <thead>
-                            <tr>
-                                <th>Ticker</th>
-                                <th class="txt-right">Price</th>
-                                <th class="txt-right">Position</th>
-                                <th class="txt-right">P/L</th>
-                                <th class="txt-right">Stop</th>
-                            </tr>
-                        </thead>
-                        <tbody id="positions-list">
-                            <tr><td colspan="5" class="empty-state">Loading positions...</td></tr>
-                        </tbody>
-                    </table>
+                
+                <div id="active-positions" class="tab-content active-tab">
+                    <div class="table-responsive" style="overflow-x: auto;">
+                        <table class="battlefield-table">
+                            <thead>
+                                <tr>
+                                    <th>Ticker</th>
+                                    <th class="txt-right">Price</th>
+                                    <th class="txt-right">Position</th>
+                                    <th class="txt-right">P/L</th>
+                                    <th class="txt-right">Stop</th>
+                                </tr>
+                            </thead>
+                            <tbody id="positions-list">
+                                <tr><td colspan="5" class="empty-state">Loading positions...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
-            </div>
-            
-            <div id="waitlist-positions" class="tab-content">
-                <div class="table-responsive" style="overflow-x: auto;">
-                    <table class="battlefield-table">
-                        <thead>
-                            <tr>
-                                <th>Ticker</th>
-                                <th class="txt-right">Trigger</th>
-                                <th class="txt-right">Score</th>
-                                <th class="txt-right">Status / Timer</th>
-                            </tr>
-                        </thead>
-                        <tbody id="waitlist-list">
-                            <tr><td colspan="4" class="empty-state">Loading waitlist...</td></tr>
-                        </tbody>
-                    </table>
+                
+                <div id="waitlist-positions" class="tab-content">
+                    <div class="table-responsive" style="overflow-x: auto;">
+                        <table class="battlefield-table">
+                            <thead>
+                                <tr>
+                                    <th>Ticker</th>
+                                    <th class="txt-right">Trigger</th>
+                                    <th class="txt-right">Score</th>
+                                    <th class="txt-right">Status / Timer</th>
+                                </tr>
+                            </thead>
+                            <tbody id="waitlist-list">
+                                <tr><td colspan="4" class="empty-state">Loading waitlist...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
-            </div>
-            
-            <div id="learning-positions" class="tab-content">
-                <div class="list-container" id="learning-list" style="max-height: 380px;">
-                    <div class="empty-state">Loading trade feedback...</div>
+                
+                <div id="learning-positions" class="tab-content">
+                    <!-- Agent GURU Daily Lessons Banner -->
+                    <div class="lessons-banner" id="lessons-banner" style="display: none;">
+                        <div class="lessons-banner-header">
+                            <span>🧠 Agent GURU Daily Lessons (<span id="lessons-date"></span>)</span>
+                        </div>
+                        <div class="lessons-banner-content" id="lessons-content"></div>
+                    </div>
+                    
+                    <div class="learning-controls-bar">
+                        <input type="text" id="learning-search" placeholder="🔍 Search Ticker..." oninput="handleFeedbackSearch(this.value)">
+                        <select id="learning-sort" onchange="handleFeedbackSort(this.value)">
+                            <option value="recent">Most Recent</option>
+                            <option value="pnl-desc">Highest P/L %</option>
+                            <option value="pnl-asc">Lowest P/L %</option>
+                        </select>
+                    </div>
+                    <div class="learning-filter-row">
+                        <button class="filter-pill active" id="pill-all" onclick="handleFeedbackFilter('all')">All</button>
+                        <button class="filter-pill" id="pill-wins" onclick="handleFeedbackFilter('wins')">Wins</button>
+                        <button class="filter-pill" id="pill-losses" onclick="handleFeedbackFilter('losses')">Losses</button>
+                    </div>
+                    <div class="list-container" id="learning-list" style="max-height: 330px;">
+                        <div class="empty-state">Loading trade feedback...</div>
+                    </div>
                 </div>
-            </div>
-        </section>
+            </section>
+        </div>
 
         <!-- Intelligence (News) -->
         <section class="glass-panel intelligence-panel">
@@ -125,6 +149,6 @@
         </section>
 
     </div>
-    <script src="/static/app.js?v=102"></script>
+    <script src="/static/app.js?v=105"></script>
 </body>
 </html>
