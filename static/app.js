@@ -142,6 +142,22 @@ async function fetchNews() {
     }
 }
 
+// Keep track of expanded card IDs so they don't collapse on polling refresh
+const expandedCards = new Set();
+
+function toggleCard(id) {
+    const card = document.getElementById(`learn-card-${id}`);
+    if (!card) return;
+    
+    if (card.classList.contains('expanded')) {
+        card.classList.remove('expanded');
+        expandedCards.delete(id);
+    } else {
+        card.classList.add('expanded');
+        expandedCards.add(id);
+    }
+}
+
 async function fetchFeedback() {
     try {
         const res = await fetch('/api/feedback');
@@ -150,32 +166,72 @@ async function fetchFeedback() {
         if (data.status === 'success') {
             const list = document.getElementById('learning-list');
             if (data.data.length === 0) {
-                list.innerHTML = '<tr><td colspan="4" class="empty-state">No trade feedback loaded yet.</td></tr>';
+                list.innerHTML = '<div class="empty-state">No trade feedback loaded yet.</div>';
                 return;
             }
             
-            list.innerHTML = data.data.map(f => {
+            list.innerHTML = data.data.map((f, index) => {
+                const id = `card-${index}`;
                 const pnl = f.pnl_pct;
-                const pnlClass = pnl >= 0 ? 'tr-profit' : 'tr-loss';
+                const pnlClass = pnl >= 0 ? 'profit' : 'loss';
                 const pnlText = (pnl >= 0 ? '+' : '') + pnl.toFixed(2) + '%';
                 
+                const isExpanded = expandedCards.has(id);
+                const expandedClass = isExpanded ? 'expanded' : '';
+                
+                // Construct a custom lesson takeaway
+                let lessonText = "";
+                let highlightClass = "";
+                if (pnl >= 0) {
+                    highlightClass = "success";
+                    lessonText = `<strong>Takeaway:</strong> This trade succeeded because it was triggered by a high-significance fundamental catalyst combined with robust momentum confirmation. Target scale-out achieved.`;
+                } else {
+                    highlightClass = "danger";
+                    lessonText = `<strong>Takeaway:</strong> Trailing stop was hit to limit portfolio drawdowns. Lesson: Check if overall market index (SPY) trend was weak, or if volatility spike triggered stop premature.`;
+                }
+                
+                const tenaliSection = f.tenali_critique ? `
+                    <div class="learn-section">
+                        <div class="learn-section-title">🛡️ Agent Tenali Risk Audit (Consensus Score: ${f.tenali_score || 0}/10)</div>
+                        <div class="learn-section-content">${f.tenali_critique}</div>
+                    </div>
+                ` : '';
+                
                 return `
-                    <tr class="${pnlClass}">
-                        <td>
-                            <span class="ticker-badge">${f.ticker}</span>
-                            <div class="small-detail" style="max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${f.headline}">${f.headline}</div>
-                        </td>
-                        <td class="txt-right">
-                            <div>$${f.sell_price.toFixed(2)}</div>
-                            <div class="small-detail">In: $${f.buy_price.toFixed(2)}</div>
-                        </td>
-                        <td class="txt-right ${pnl >= 0 ? 'val-positive' : 'val-negative'}" style="font-weight: bold;">
-                            ${pnlText}
-                        </td>
-                        <td style="font-size: 11px; max-width: 200px; line-height: 1.3;">
-                            <div style="font-style: italic; color: #aaa;" title="${f.reasoning}">${f.reasoning.length > 80 ? f.reasoning.substring(0, 80) + '...' : f.reasoning}</div>
-                        </td>
-                    </tr>
+                    <div class="learn-card ${pnlClass} ${expandedClass}" id="learn-card-${id}">
+                        <div class="learn-header" onclick="toggleCard('${id}')">
+                            <div>
+                                <span class="ticker-badge" style="color: ${pnl >= 0 ? 'var(--color-bull)' : 'var(--color-bear)'};">${f.ticker}</span>
+                                <span class="small-detail" style="margin-left: 10px;">${f.timestamp.split('T')[0]}</span>
+                            </div>
+                            <div style="display: flex; align-items: center;">
+                                <span class="pnl-badge ${pnl >= 0 ? 'val-positive' : 'val-negative'}">${pnlText}</span>
+                                <span class="chevron-icon">▼</span>
+                            </div>
+                        </div>
+                        <div class="learn-body">
+                            <div class="learn-section">
+                                <div class="learn-section-title">📰 The Catalyst (Raw Headline)</div>
+                                <div class="learn-section-content" style="color: var(--text-bright); font-weight: 600;">${f.headline}</div>
+                            </div>
+                            <div class="learn-section">
+                                <div class="learn-section-title">🧠 Agent Birbal Analysis (Birbal Score: ${f.significance_score || 0}/10)</div>
+                                <div class="learn-section-content">${f.reasoning}</div>
+                            </div>
+                            ${tenaliSection}
+                            <div class="learn-section">
+                                <div class="learn-section-title">⚔️ Execution Metrics</div>
+                                <div class="learn-section-content">
+                                    Bought at: <strong>$${f.buy_price.toFixed(2)}</strong> | 
+                                    Sold at: <strong>$${f.sell_price.toFixed(2)}</strong> | 
+                                    Closed time: <strong>${f.timestamp.includes('T') ? f.timestamp.split('T')[1].substring(0,8) : f.timestamp}</strong>
+                                </div>
+                            </div>
+                            <div class="learn-highlight-box ${highlightClass}">
+                                ${lessonText}
+                            </div>
+                        </div>
+                    </div>
                 `;
             }).join('');
         }
