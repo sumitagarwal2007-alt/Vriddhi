@@ -21,10 +21,19 @@ async function fetchStats() {
         
         if (data.status === 'success') {
             const pnlEl = document.getElementById('total-pnl');
-            pnlEl.textContent = `$${data.pnl.toFixed(2)}`;
+            const pnlPrefix = data.pnl >= 0 ? '+' : '';
+            const badgeHTML = data.pnl >= 0 
+                ? `<span class="growth-badge positive">▲ BULL</span>`
+                : `<span class="growth-badge negative">▼ BEAR</span>`;
+            pnlEl.innerHTML = `$${data.pnl.toFixed(2)} ${badgeHTML}`;
             pnlEl.className = 'value ' + (data.pnl >= 0 ? 'val-positive' : 'val-negative');
             
-            document.getElementById('win-rate').textContent = `${data.win_rate.toFixed(1)}%`;
+            const winRateEl = document.getElementById('win-rate');
+            const winBadge = data.win_rate >= 50
+                ? `<span class="growth-badge positive">▲ Strong</span>`
+                : `<span class="growth-badge negative">▼ Weak</span>`;
+            winRateEl.innerHTML = `${data.win_rate.toFixed(1)}% ${winBadge}`;
+            
             document.getElementById('total-trades').textContent = data.trades;
             
             const dot = document.querySelector('.dot');
@@ -50,7 +59,14 @@ async function fetchKosh() {
         const data = await res.json();
         
         if (data.status === 'success') {
-            document.getElementById('kosh-value').textContent = `$${data.portfolio_value.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
+            // Portfolio growth relative to $100,000 cash
+            const koshGrowth = ((data.portfolio_value - 100000) / 100000) * 100;
+            const koshGrowthText = koshGrowth >= 0 ? `+${koshGrowth.toFixed(2)}%` : `${koshGrowth.toFixed(2)}%`;
+            const koshBadge = koshGrowth >= 0
+                ? `<span class="growth-badge positive">▲ ${koshGrowthText}</span>`
+                : `<span class="growth-badge negative">▼ ${koshGrowthText}</span>`;
+                
+            document.getElementById('kosh-value').innerHTML = `$${data.portfolio_value.toLocaleString(undefined, {minimumFractionDigits: 2})} ${koshBadge}`;
             document.getElementById('kosh-cash').textContent = `$${data.cash.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
             document.getElementById('kosh-bp').textContent = `$${data.buying_power.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
         }
@@ -58,6 +74,7 @@ async function fetchKosh() {
         console.error("Kosh error", e);
     }
 }
+
 
 async function fetchPositions() {
     try {
@@ -70,21 +87,31 @@ async function fetchPositions() {
             if (data.active.length === 0) {
                 activeList.innerHTML = '<tr><td colspan="5" class="empty-state">No active positions.</td></tr>';
             } else {
-                activeList.innerHTML = data.active.map(p => `
+                activeList.innerHTML = data.active.map(p => {
+                    const plPrefix = p.unrealized_pl >= 0 ? '▲ +' : '▼ ';
+                    const trendEmoji = p.unrealized_pl >= 0 ? '🐂' : '🐻';
+                    const trendText = p.unrealized_pl >= 0 ? 'Bull' : 'Bear';
+                    const trendBadge = `<span class="growth-badge ${p.unrealized_pl >= 0 ? 'positive' : 'negative'}" style="margin-left:4px; font-size:8.5px; padding:1px 4px;">${trendEmoji} ${trendText}</span>`;
+                    return `
                     <tr class="${p.unrealized_pl >= 0 ? 'tr-profit' : 'tr-loss'}">
-                        <td><span class="ticker-badge">${p.ticker}</span></td>
+                        <td>
+                            <div style="display:flex; align-items:center;">
+                                <span class="ticker-badge">${p.ticker}</span>
+                                ${trendBadge}
+                            </div>
+                        </td>
                         <td class="txt-right">$${p.current_price.toFixed(2)}</td>
                         <td class="txt-right">
                             <div>${p.qty.toFixed(3)} sh</div>
                             <div class="small-detail">Cost: $${p.cost_basis.toFixed(2)}</div>
                         </td>
                         <td class="txt-right ${p.unrealized_pl >= 0 ? 'val-positive' : 'val-negative'}">
-                            <div>${p.unrealized_pl >= 0 ? '+' : ''}$${p.unrealized_pl.toFixed(2)}</div>
+                            <div>${plPrefix}$${Math.abs(p.unrealized_pl).toFixed(2)}</div>
                             <div class="small-detail">${p.unrealized_plpc.toFixed(2)}%</div>
                         </td>
                         <td class="txt-right stop-col">$${p.stop_price ? p.stop_price.toFixed(2) : 'N/A'}</td>
                     </tr>
-                `).join('');
+                `}).join('');
             }
             
             // Render Waitlist
@@ -96,7 +123,12 @@ async function fetchPositions() {
                     const statusText = w.is_overnight ? `Pre-Market: ${w.target_buy_time.split('T')[1].substring(0,5)}` : `3m Wait: ${w.target_buy_time.split('T')[1].substring(0,8)}`;
                     return `
                     <tr class="tr-waitlist">
-                        <td><span class="ticker-badge">${w.ticker}</span></td>
+                        <td>
+                            <div style="display:flex; align-items:center;">
+                                <span class="ticker-badge">${w.ticker}</span>
+                                <span class="growth-badge" style="background:rgba(255,255,255,0.03); color:#888; font-size:8.5px; padding:1px 4px; margin-left:4px;">🐂 Wait</span>
+                            </div>
+                        </td>
                         <td class="txt-right">$${w.initial_price.toFixed(2)}</td>
                         <td class="txt-right"><span class="highlight-gold">${w.significance_score || 7}</span></td>
                         <td class="txt-right small-detail">${statusText}</td>
@@ -124,11 +156,15 @@ async function fetchNews() {
             list.innerHTML = data.data.map(n => {
                 const timeStr = n.timestamp.includes('T') ? n.timestamp.split('T')[1].substring(0,8) : n.timestamp;
                 const sentClass = n.sentiment.toLowerCase();
+                let sentSymbol = '';
+                if (n.sentiment === 'BULLISH') sentSymbol = '🐂 ';
+                else if (n.sentiment === 'BEARISH') sentSymbol = '🐻 ';
+                else sentSymbol = '⚪ ';
                 return `
                     <div class="news-card">
                         <div class="news-header">
                             <span class="news-ticker">${n.ticker}</span>
-                            <span class="news-sentiment ${sentClass}">${n.sentiment}</span>
+                            <span class="news-sentiment ${sentClass}">${sentSymbol}${n.sentiment}</span>
                             <span class="news-time">${timeStr}</span>
                         </div>
                         <div class="news-headline">${n.headline}</div>
@@ -281,12 +317,13 @@ function renderFeedbackList() {
                 <div class="learn-section-content">${f.tenali_critique}</div>
             </div>
         ` : '';
-        
+        const growthBadge = `<span class="growth-badge ${pnl >= 0 ? 'positive' : 'negative'}" style="margin-left:8px; font-size:8.5px; padding:2px 6px;">${pnl >= 0 ? '🐂 BULL' : '🐻 BEAR'}</span>`;
         return `
             <div class="learn-card ${pnlClass} ${expandedClass}" id="learn-card-${id}">
                 <div class="learn-header" onclick="toggleCard('${id}')">
-                    <div>
+                    <div style="display:flex; align-items:center;">
                         <span class="ticker-badge" style="color: ${pnl >= 0 ? 'var(--color-bull)' : 'var(--color-bear)'};">${f.ticker}</span>
+                        ${growthBadge}
                         <span class="small-detail" style="margin-left: 10px;">${f.timestamp.split('T')[0]}</span>
                     </div>
                     <div style="display: flex; align-items: center;">
