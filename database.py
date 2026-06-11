@@ -109,6 +109,15 @@ async def init_db():
                 timestamp TEXT
             )
         ''')
+        # Alpha-3 Upgrade: Add Agent Tenali audit columns to trade_feedback
+        try:
+            await db.execute('ALTER TABLE trade_feedback ADD COLUMN tenali_critique TEXT DEFAULT ""')
+        except sqlite3.OperationalError:
+            pass
+        try:
+            await db.execute('ALTER TABLE trade_feedback ADD COLUMN tenali_score INTEGER DEFAULT 0')
+        except sqlite3.OperationalError:
+            pass
         await db.commit()
 
 
@@ -200,7 +209,7 @@ async def log_trade_feedback(ticker: str, sell_price: float, timestamp: str):
             entry_time = pos['entry_time']
         
         async with db.execute('''
-            SELECT raw_headline, ai_sentiment, significance_score, ai_reasoning 
+            SELECT raw_headline, ai_sentiment, significance_score, ai_reasoning, tenali_critique, tenali_score
             FROM signals_log 
             WHERE extracted_ticker = ? AND ai_sentiment = 'BULLISH' AND timestamp <= ? 
             ORDER BY timestamp DESC LIMIT 1
@@ -211,18 +220,22 @@ async def log_trade_feedback(ticker: str, sell_price: float, timestamp: str):
                 sentiment = sig['ai_sentiment']
                 significance_score = sig['significance_score']
                 reasoning = sig['ai_reasoning']
+                tenali_critique = sig.get('tenali_critique', '')
+                tenali_score = sig.get('tenali_score', 0)
             else:
                 headline = "Unknown headline"
                 sentiment = "BULLISH"
                 significance_score = 0
                 reasoning = "N/A"
+                tenali_critique = ""
+                tenali_score = 0
                 
         pnl_pct = (sell_price - purchase_price) / purchase_price
         
         await db.execute('''
-            INSERT INTO trade_feedback (ticker, headline, sentiment, significance_score, reasoning, buy_price, sell_price, pnl_pct, timestamp)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (ticker, headline, sentiment, significance_score, reasoning, purchase_price, sell_price, pnl_pct, timestamp))
+            INSERT INTO trade_feedback (ticker, headline, sentiment, significance_score, reasoning, buy_price, sell_price, pnl_pct, timestamp, tenali_critique, tenali_score)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (ticker, headline, sentiment, significance_score, reasoning, purchase_price, sell_price, pnl_pct, timestamp, tenali_critique, tenali_score))
         await db.commit()
 
 async def get_recent_feedback(limit: int = 10) -> List[Dict[str, Any]]:

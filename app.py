@@ -172,6 +172,11 @@ def api_feedback():
         
         feedback_list = []
         for row in rows:
+            # Check if columns exist in row keys (to handle legacy databases gracefully)
+            keys = row.keys()
+            tenali_critique = row['tenali_critique'] if 'tenali_critique' in keys else ""
+            tenali_score = row['tenali_score'] if 'tenali_score' in keys else 0
+            
             feedback_list.append({
                 "ticker": row['ticker'],
                 "headline": row['headline'],
@@ -181,7 +186,9 @@ def api_feedback():
                 "buy_price": row['buy_price'],
                 "sell_price": row['sell_price'],
                 "pnl_pct": row['pnl_pct'] * 100 if row['pnl_pct'] is not None else 0.0,
-                "timestamp": row['timestamp']
+                "timestamp": row['timestamp'],
+                "tenali_critique": tenali_critique,
+                "tenali_score": tenali_score
             })
         return jsonify({"status": "success", "data": feedback_list})
     except Exception as e:
