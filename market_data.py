@@ -167,3 +167,105 @@ def calculate_position_size(stop_percent: float, significance_score: int = 7, po
     # Cap size between $100 and $1200 (or up to 10% of portfolio equity)
     max_size = max(1200.0, min(2000.0, portfolio_equity * 0.10))
     return max(100.0, min(max_size, size))
+
+import os
+from alpaca.data.historical import StockHistoricalDataClient
+from alpaca.data.requests import StockBarsRequest
+from alpaca.data.timeframe import TimeFrame
+from datetime import datetime, timedelta
+
+def get_rsi_vwap(ticker: str) -> tuple[float, float]:
+    """Returns (RSI, VWAP) based on 15-minute bars over the last 3 days."""
+    API_KEY = os.getenv('ALPACA_API_KEY')
+    SECRET_KEY = os.getenv('ALPACA_SECRET_KEY')
+    if not API_KEY or API_KEY == "YOUR_ALPACA_KEY":
+        return 50.0, 150.0 # Mock values
+        
+    client = StockHistoricalDataClient(API_KEY, SECRET_KEY)
+    
+    # Get last 3 days of data
+    end = datetime.now()
+    start = end - timedelta(days=3)
+    
+    req = StockBarsRequest(
+        symbol_or_symbols=[ticker],
+        timeframe=TimeFrame.Minute,
+        start=start,
+        end=end
+    )
+    
+    try:
+        bars = client.get_stock_bars(req)
+        if not bars.data or ticker not in bars.data:
+            return 50.0, 0.0
+            
+        ticker_bars = bars.data[ticker]
+        if not ticker_bars:
+            return 50.0, 0.0
+            
+        # Calculate VWAP
+        total_vol = 0
+        total_price_vol = 0
+        for b in ticker_bars:
+            total_vol += b.volume
+            total_price_vol += b.vwap * b.volume
+            
+        vwap = total_price_vol / total_vol if total_vol > 0 else 0.0
+        
+        # Calculate 14-period RSI
+        closes = [b.close for b in ticker_bars]
+        if len(closes) < 15:
+            return 50.0, vwap
+            
+        gains = []
+        losses = []
+        for i in range(1, len(closes)):
+            change = closes[i] - closes[i-1]
+            if change > 0:
+                gains.append(change)
+                losses.append(0)
+            else:
+                gains.append(0)
+                losses.append(abs(change))
+                
+        avg_gain = sum(gains[-14:]) / 14
+        avg_loss = sum(losses[-14:]) / 14
+        
+        if avg_loss == 0:
+            rsi = 100.0
+        else:
+            rs = avg_gain / avg_loss
+            rsi = 100.0 - (100.0 / (1 + rs))
+            
+        return rsi, vwap
+        
+    except Exception as e:
+        print(f"[Gateway YUKTI] Error calculating RSI/VWAP for {ticker}: {e}")
+        return 50.0, 0.0
+
+def calculate_kelly_position_size(portfolio_equity: float, win_rate: float, win_loss_ratio: float, direction: str = 'LONG') -> float:
+    """
+    Calculates position size using the Kelly Criterion.
+    """
+    if win_rate <= 0 or win_loss_ratio <= 0:
+        return max(100.0, portfolio_equity * 0.02) # Safe fallback 2%
+        
+    # W = win rate (0.0 to 1.0)
+    # R = Win/Loss Ratio
+    W = win_rate
+    R = win_loss_ratio
+    
+    kelly_fraction = W - ((1 - W) / R)
+    
+    # If edge is negative, Kelly will be negative. We enforce a minimum safe bet for testing.
+    if kelly_fraction <= 0:
+        return max(100.0, portfolio_equity * 0.01)
+        
+    # Half-Kelly for safety
+    half_kelly = kelly_fraction / 2.0
+    
+    # Cap at 15% of portfolio per trade
+    allocation_pct = min(0.15, half_kelly)
+    
+    return max(100.0, portfolio_equity * allocation_pct)
+

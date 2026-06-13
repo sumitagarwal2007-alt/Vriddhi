@@ -1,0 +1,4 @@
+Traceback (most recent call last):
+  File "/Users/sumitagarwal/Documents/AntiGravity/Vriddhi/main.py", line 6, in <module>
+    from dotenv import load_dotenv
+ModuleNotFoundError: No module named 'dotenv'

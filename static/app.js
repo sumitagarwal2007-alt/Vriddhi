@@ -1,3 +1,5 @@
+let performanceChart = null;
+
 function switchTab(tabId) {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active-tab'));
@@ -440,6 +442,144 @@ async function fetchLessons() {
     }
 }
 
+async function updatePerformanceChart() {
+    try {
+        const res = await fetch('/api/chart-data');
+        const data = await res.json();
+        
+        if (data.status !== 'success') return;
+        
+        const ctx = document.getElementById('performance-chart');
+        if (!ctx) return;
+        
+        if (!performanceChart) {
+            performanceChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.labels,
+                    datasets: [
+                        {
+                            label: 'Portfolio (%)',
+                            data: data.portfolio,
+                            borderColor: '#30d158',
+                            backgroundColor: 'rgba(48, 209, 88, 0.04)',
+                            borderWidth: 2,
+                            fill: true,
+                            tension: 0.15,
+                            pointRadius: 0,
+                            pointHoverRadius: 6,
+                            pointHoverBackgroundColor: '#30d158',
+                            pointHoverBorderColor: '#ffffff',
+                            pointHoverBorderWidth: 2
+                        },
+                        {
+                            label: 'SPY (S&P 500) (%)',
+                            data: data.spy,
+                            borderColor: 'rgba(255, 255, 255, 0.22)',
+                            backgroundColor: 'transparent',
+                            borderWidth: 1.5,
+                            borderDash: [5, 5],
+                            fill: false,
+                            tension: 0.15,
+                            pointRadius: 0,
+                            pointHoverRadius: 4,
+                            pointHoverBackgroundColor: '#ffffff',
+                            pointHoverBorderColor: 'rgba(255, 255, 255, 0.4)',
+                            pointHoverBorderWidth: 1.5
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            align: 'end',
+                            labels: {
+                                color: '#86868b',
+                                font: {
+                                    family: 'Inter',
+                                    size: 10,
+                                    weight: '600'
+                                },
+                                boxWidth: 10,
+                                boxHeight: 6,
+                                padding: 12
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(18, 18, 18, 0.95)',
+                            titleColor: '#ffffff',
+                            bodyColor: '#86868b',
+                            borderColor: 'rgba(255, 255, 255, 0.08)',
+                            borderWidth: 1,
+                            padding: 10,
+                            titleFont: { family: 'Outfit', weight: 'bold' },
+                            bodyFont: { family: 'Inter' },
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed.y !== null) {
+                                        label += (context.parsed.y >= 0 ? '+' : '') + context.parsed.y.toFixed(3) + '%';
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: {
+                                display: false
+                            },
+                            ticks: {
+                                color: '#555558',
+                                font: {
+                                    family: 'Inter',
+                                    size: 9
+                                },
+                                maxTicksLimit: 12
+                            }
+                        },
+                        y: {
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.03)',
+                                drawBorder: false
+                            },
+                            ticks: {
+                                color: '#555558',
+                                font: {
+                                    family: 'Inter',
+                                    size: 9
+                                },
+                                callback: function(value) {
+                                    return (value >= 0 ? '+' : '') + value.toFixed(1) + '%';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        } else {
+            performanceChart.data.labels = data.labels;
+            performanceChart.data.datasets[0].data = data.portfolio;
+            performanceChart.data.datasets[1].data = data.spy;
+            performanceChart.update();
+        }
+    } catch (e) {
+        console.error("Chart error", e);
+    }
+}
+
 function updateAll() {
     fetchStats();
     fetchKosh();
@@ -447,6 +587,7 @@ function updateAll() {
     fetchNews();
     fetchFeedback();
     fetchLessons();
+    updatePerformanceChart();
 }
 
 function toggleLessonsBanner() {

@@ -94,6 +94,26 @@ async def init_db():
         except sqlite3.OperationalError:
             pass
             
+        # V2 Multi-Agent Debate Upgrade: Add bear_thesis and judge_verdict
+        try:
+            await db.execute('ALTER TABLE signals_log ADD COLUMN bear_thesis TEXT DEFAULT ""')
+        except sqlite3.OperationalError:
+            pass
+        try:
+            await db.execute('ALTER TABLE signals_log ADD COLUMN judge_verdict TEXT DEFAULT ""')
+        except sqlite3.OperationalError:
+            pass
+            
+        # V2 Short Selling Upgrade: Add direction
+        try:
+            await db.execute("ALTER TABLE active_positions ADD COLUMN direction TEXT DEFAULT 'LONG'")
+        except sqlite3.OperationalError:
+            pass
+        try:
+            await db.execute("ALTER TABLE waitlist_positions ADD COLUMN direction TEXT DEFAULT 'LONG'")
+        except sqlite3.OperationalError:
+            pass
+            
         # Self-Learning Upgrade: Add trade_feedback table
         await db.execute('''
             CREATE TABLE IF NOT EXISTS trade_feedback (
@@ -146,12 +166,12 @@ async def get_latest_daily_lessons() -> Optional[str]:
             return row['lessons'] if row else None
 
 
-async def log_signal(timestamp: str, raw_headline: str, extracted_ticker: str, ai_sentiment: str, ai_reasoning: str, is_eligible: int, significance_score: int = 0, tenali_approved: int = 1, tenali_critique: str = "", tenali_score: int = 0):
+async def log_signal(timestamp: str, raw_headline: str, extracted_ticker: str, ai_sentiment: str, ai_reasoning: str, is_eligible: int, significance_score: int = 0, tenali_approved: int = 1, tenali_critique: str = "", tenali_score: int = 0, bear_thesis: str = "", judge_verdict: str = ""):
     async with aiosqlite.connect(DB_NAME) as db:
         await db.execute('''
-            INSERT INTO signals_log (timestamp, raw_headline, extracted_ticker, ai_sentiment, ai_reasoning, is_eligible, significance_score, tenali_approved, tenali_critique, tenali_score)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (timestamp, raw_headline, extracted_ticker, ai_sentiment, ai_reasoning, is_eligible, significance_score, tenali_approved, tenali_critique, tenali_score))
+            INSERT INTO signals_log (timestamp, raw_headline, extracted_ticker, ai_sentiment, ai_reasoning, is_eligible, significance_score, tenali_approved, tenali_critique, tenali_score, bear_thesis, judge_verdict)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (timestamp, raw_headline, extracted_ticker, ai_sentiment, ai_reasoning, is_eligible, significance_score, tenali_approved, tenali_critique, tenali_score, bear_thesis, judge_verdict))
         await db.commit()
 
 async def log_transaction(timestamp: str, alpaca_order_id: str, ticker: str, action: str, share_qty: float, execution_price: float, order_type: str, status: str):
@@ -162,12 +182,12 @@ async def log_transaction(timestamp: str, alpaca_order_id: str, ticker: str, act
         ''', (timestamp, alpaca_order_id, ticker, action, share_qty, execution_price, order_type, status))
         await db.commit()
 
-async def add_active_position(ticker: str, purchase_price: float, share_qty: float, highest_tracked_price: float, dynamic_stop_percent: float, entry_time: str, profit_taken: int = 0, significance_score: int = 7):
+async def add_active_position(ticker: str, purchase_price: float, share_qty: float, highest_tracked_price: float, dynamic_stop_percent: float, entry_time: str, profit_taken: int = 0, significance_score: int = 7, direction: str = 'LONG'):
     async with aiosqlite.connect(DB_NAME) as db:
         await db.execute('''
-            INSERT OR REPLACE INTO active_positions (ticker, purchase_price, share_qty, highest_tracked_price, dynamic_stop_percent, entry_time, profit_taken, significance_score)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (ticker, purchase_price, share_qty, highest_tracked_price, dynamic_stop_percent, entry_time, profit_taken, significance_score))
+            INSERT OR REPLACE INTO active_positions (ticker, purchase_price, share_qty, highest_tracked_price, dynamic_stop_percent, entry_time, profit_taken, significance_score, direction)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (ticker, purchase_price, share_qty, highest_tracked_price, dynamic_stop_percent, entry_time, profit_taken, significance_score, direction))
         await db.commit()
 
 async def get_active_positions() -> List[Dict[str, Any]]:
@@ -198,12 +218,20 @@ async def mark_profit_taken(ticker: str, new_qty: float):
         ''', (new_qty, ticker))
         await db.commit()
 
-async def add_to_waitlist(ticker: str, initial_price: float, target_buy_time: str, headline: str, stop_percent: float, is_overnight: int = 0, significance_score: int = 7):
+async def update_position_qty(ticker: str, new_qty: float):
     async with aiosqlite.connect(DB_NAME) as db:
         await db.execute('''
-            INSERT OR REPLACE INTO waitlist_positions (ticker, initial_price, target_buy_time, headline, stop_percent, is_overnight, significance_score)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        ''', (ticker, initial_price, target_buy_time, headline, stop_percent, is_overnight, significance_score))
+            UPDATE active_positions SET share_qty = ? WHERE ticker = ?
+        ''', (new_qty, ticker))
+        await db.commit()
+
+
+async def add_to_waitlist(ticker: str, initial_price: float, target_buy_time: str, headline: str, stop_percent: float, is_overnight: int = 0, significance_score: int = 7, direction: str = 'LONG'):
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute('''
+            INSERT OR REPLACE INTO waitlist_positions (ticker, initial_price, target_buy_time, headline, stop_percent, is_overnight, significance_score, direction)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (ticker, initial_price, target_buy_time, headline, stop_percent, is_overnight, significance_score, direction))
         await db.commit()
 
 async def get_waitlist() -> List[Dict[str, Any]]:
@@ -296,4 +324,35 @@ async def get_unanalyzed_trade_dates() -> List[str]:
             rows = await cursor.fetchall()
             return [row['trade_date'] for row in rows]
 
+
+
+async def get_win_rate_and_ratio() -> tuple[float, float]:
+    async with aiosqlite.connect(DB_NAME) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute('SELECT * FROM trade_feedback') as cursor:
+            rows = await cursor.fetchall()
+            
+    if not rows:
+        return 0.0, 0.0
+        
+    wins = 0
+    losses = 0
+    total_win_pct = 0.0
+    total_loss_pct = 0.0
+    
+    for r in rows:
+        pnl = r['pnl_pct']
+        if pnl > 0:
+            wins += 1
+            total_win_pct += pnl
+        elif pnl < 0:
+            losses += 1
+            total_loss_pct += abs(pnl)
+            
+    win_rate = wins / len(rows)
+    avg_win = total_win_pct / wins if wins > 0 else 0.0
+    avg_loss = total_loss_pct / losses if losses > 0 else 0.0
+    
+    ratio = avg_win / avg_loss if avg_loss > 0 else 1.0
+    return win_rate, ratio
 

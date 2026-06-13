@@ -35,21 +35,28 @@ def index():
 def api_stats():
     try:
         conn = get_db_connection()
-        df = pd.read_sql_query("SELECT * FROM transactions", conn)
+        df_tf = pd.read_sql_query("SELECT * FROM trade_feedback", conn)
         conn.close()
         
         trades, win_rate, pnl = 0, 0.0, 0.0
         
-        if not df.empty:
-            buys = df[df['action'] == 'BUY']
-            sells = df[df['action'] == 'SELL']
-            closed_trades = pd.merge(buys, sells, on='ticker', suffixes=('_buy', '_sell'))
-            
-            if not closed_trades.empty:
-                closed_trades['realized_pl'] = (closed_trades['execution_price_sell'] - closed_trades['execution_price_buy']) * closed_trades['share_qty_buy']
-                pnl = float(closed_trades['realized_pl'].sum())
-                win_rate = float((closed_trades['realized_pl'] > 0).sum() / len(closed_trades) * 100)
-                trades = len(closed_trades)
+        if not df_tf.empty:
+            trades = len(df_tf)
+            win_rate = float((df_tf['pnl_pct'] > 0).sum() / trades * 100)
+                
+        if trading_client:
+            try:
+                acc = trading_client.get_account()
+                port_val = float(acc.portfolio_value)
+                
+                # Get unrealized P/L to find pure realized P/L
+                positions = trading_client.get_all_positions()
+                unrealized = sum(float(p.unrealized_pl) for p in positions)
+                
+                # Alpaca paper starts at 100,000.00
+                pnl = (port_val - 100000.0) - unrealized
+            except Exception as e:
+                pass
         
         market_status = "UNKNOWN"
         next_open = ""
@@ -109,7 +116,9 @@ def api_news():
                 "ticker": row['extracted_ticker'],
                 "sentiment": row['ai_sentiment'],
                 "headline": row['raw_headline'],
-                "reasoning": row['ai_reasoning']
+                "reasoning": row['ai_reasoning'],
+                "bear_thesis": row.get('bear_thesis', ''),
+                "judge_verdict": row.get('judge_verdict', '')
             })
         return jsonify({"status": "success", "data": news_list})
     except Exception as e:
@@ -139,7 +148,13 @@ def api_positions():
                     stop_price = None
                     if ticker in db_positions:
                         row = db_positions[ticker]
-                        stop_price = float(row['highest_tracked_price']) * (1 - float(row['dynamic_stop_percent']))
+                        direction = row.get('direction', 'LONG')
+                        if direction == 'LONG':
+                            stop_price = float(row['highest_tracked_price']) * (1 - float(row['dynamic_stop_percent']))
+                        else:
+                            stop_price = float(row['highest_tracked_price']) * (1 + float(row['dynamic_stop_percent']))
+                    else:
+                        direction = 'LONG'
                     
                     positions_list.append({
                         "ticker": ticker,
@@ -148,7 +163,8 @@ def api_positions():
                         "unrealized_pl": float(p.unrealized_pl),
                         "unrealized_plpc": float(p.unrealized_plpc) * 100,
                         "stop_price": stop_price,
-                        "current_price": float(p.current_price)
+                        "current_price": float(p.current_price),
+                        "direction": direction
                     })
             except Exception as e:
                 print(f"Error fetching positions from Alpaca: {e}")
@@ -233,6 +249,173 @@ def api_lessons():
             })
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/chart-data')
+def api_chart_data():
+    try:
+        from datetime import datetime, time
+        from zoneinfo import ZoneInfo
+    except ImportError:
+        import pytz as tz
+        ZoneInfo = lambda x: tz.timezone(x)
+        from datetime import datetime, time
+    
+    try:
+        eastern = ZoneInfo('US/Eastern')
+        now_est = datetime.now(eastern)
+        
+        # Get latest trade date from transactions to display historical days correctly on weekends
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT DATE(timestamp) as tx_date FROM transactions ORDER BY id DESC LIMIT 1")
+        row = cursor.fetchone()
+        if row:
+            target_date_str = row['tx_date']
+        else:
+            target_date_str = now_est.strftime('%Y-%m-%d')
+        conn.close()
+        
+        # Parse target date
+        target_date = datetime.strptime(target_date_str, '%Y-%m-%d').date()
+        open_dt = datetime.combine(target_date, time(9, 30), tzinfo=eastern)
+        close_dt = datetime.combine(target_date, time(16, 0), tzinfo=eastern)
+        
+        start_ts = int(open_dt.timestamp())
+        if target_date == now_est.date():
+            end_ts = int(now_est.timestamp())
+        else:
+            end_ts = int(close_dt.timestamp())
+            
+        # 1. Fetch SPY candles from Finnhub
+        token = os.getenv("FINNHUB_TOKEN")
+        spy_candles = []
+        if token and token != "YOUR_FINNHUB_KEY":
+            url = f"https://finnhub.io/api/v1/stock/candle?symbol=SPY&resolution=5&from={start_ts}&to={end_ts}&token={token}"
+            try:
+                import requests
+                resp = requests.get(url, timeout=5.0)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if data.get('s') == 'ok':
+                        closes = data['c']
+                        times = data['t']
+                        spy_candles = [{'time': t, 'close': c} for t, c in zip(times, closes)]
+            except Exception as e:
+                print(f"Error fetching SPY candles: {e}")
+                
+        if not spy_candles:
+            # Generate mock candles if API is down or has no data
+            import random
+            random.seed(42)
+            spy_price = 540.0
+            current_ts = start_ts
+            # Step every 10 mins
+            while current_ts <= end_ts:
+                spy_candles.append({'time': current_ts, 'close': spy_price})
+                spy_price += random.uniform(-0.5, 0.6)
+                current_ts += 600
+                
+        # 2. Get current portfolio value
+        portfolio_equity = 100000.0
+        if trading_client:
+            try:
+                acc = trading_client.get_account()
+                portfolio_equity = float(acc.portfolio_value)
+            except:
+                pass
+                
+        # 3. Calculate closed trades profit/losses for target date
+        conn = get_db_connection()
+        df = pd.read_sql_query("SELECT * FROM transactions", conn)
+        conn.close()
+        
+        closed_trades = []
+        total_realized = 0.0
+        if not df.empty:
+            df['date'] = pd.to_datetime(df['timestamp']).dt.date
+            buys = df[df['action'] == 'BUY']
+            sells = df[df['action'] == 'SELL']
+            if not buys.empty and not sells.empty:
+                merged = pd.merge(buys, sells, on='ticker', suffixes=('_buy', '_sell'))
+                if not merged.empty:
+                    merged['realized_pl'] = (merged['execution_price_sell'] - merged['execution_price_buy']) * merged['share_qty_buy']
+                    merged['sell_date'] = pd.to_datetime(merged['timestamp_sell']).dt.date
+                    merged_day = merged[merged['sell_date'] == target_date]
+                    
+                    for _, row in merged_day.iterrows():
+                        sell_time_str = row['timestamp_sell']
+                        try:
+                            dt_parsed = pd.to_datetime(sell_time_str).tz_localize(None).tz_localize(eastern)
+                            ts = int(dt_parsed.timestamp())
+                        except:
+                            ts = start_ts
+                            
+                        closed_trades.append({
+                            'ticker': row['ticker'],
+                            'time': ts,
+                            'pnl_val': float(row['realized_pl'])
+                        })
+                        total_realized += float(row['realized_pl'])
+                        
+        # 4. Generate curves
+        start_val = portfolio_equity - total_realized
+        first_spy_price = spy_candles[0]['close'] if spy_candles else 540.0
+        
+        labels = []
+        spy_data = []
+        portfolio_data = []
+        
+        for c in spy_candles:
+            candle_ts = c['time']
+            dt_est = datetime.fromtimestamp(candle_ts, tz=eastern)
+            labels.append(dt_est.strftime('%H:%M'))
+            
+            # SPY percentage change
+            spy_change = ((c['close'] - first_spy_price) / first_spy_price) * 100
+            spy_data.append(round(spy_change, 3))
+            
+            # Portfolio value up to this candle
+            realized_so_far = sum(t['pnl_val'] for t in closed_trades if t['time'] <= candle_ts)
+            port_val = start_val + realized_so_far
+            port_change = ((port_val - start_val) / start_val) * 100
+            portfolio_data.append(round(port_change, 3))
+            
+        # 5. Transactions for annotations
+        annotations = []
+        if not df.empty:
+            df_day = df[df['date'] == target_date]
+            for _, row in df_day.iterrows():
+                try:
+                    dt_parsed = pd.to_datetime(row['timestamp']).tz_localize(None).tz_localize(eastern)
+                    ts = int(dt_parsed.timestamp())
+                    closest_idx = 0
+                    min_diff = float('inf')
+                    for idx, c in enumerate(spy_candles):
+                        diff = abs(c['time'] - ts)
+                        if diff < min_diff:
+                            min_diff = diff
+                            closest_idx = idx
+                except:
+                    closest_idx = 0
+                    
+                annotations.append({
+                    'ticker': row['ticker'],
+                    'action': row['action'],
+                    'price': float(row['execution_price']),
+                    'time': dt_parsed.strftime('%H:%M') if 'dt_parsed' in locals() else '09:30',
+                    'index': closest_idx
+                })
+                
+        return jsonify({
+            'status': 'success',
+            'date': target_date_str,
+            'labels': labels,
+            'spy': spy_data,
+            'portfolio': portfolio_data,
+            'transactions': annotations
+        })
+    except Exception as chart_err:
+        return jsonify({"status": "error", "message": str(chart_err)}), 500
 
 if __name__ == '__main__':
     # Bind to 0.0.0.0 to allow access from other devices on the same WiFi

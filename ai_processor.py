@@ -328,3 +328,54 @@ async def _generate_lessons_with_groq(system_prompt: str, user_prompt: str) -> s
         except Exception as e:
             print(f"[Self-Learning Orchestrator] Groq error: {e}")
             return "Error generating lessons via Groq Llama 3."
+
+class AgentBhishmaAnalysis(BaseModel):
+    contrarian_thesis: str = Field(description="A ruthless contrarian thesis arguing the exact opposite of the original sentiment.")
+    significance_score: int = Field(description="Score from 1 to 10 indicating how strong this contrarian case is.")
+
+class AgentVikramadityaAnalysis(BaseModel):
+    approved: bool = Field(description="True if the original sentiment overrides the contrarian case. False if the contrarian case is too strong.")
+    verdict: str = Field(description="The Judge's final rationale resolving the debate.")
+
+async def _analyze_bhishma_with_groq(headline: str, ticker: str, original_sentiment: str, original_reasoning: str) -> AgentBhishmaAnalysis:
+    api_key = os.getenv("GROQ_API_KEY")
+    if not api_key: raise ValueError("GROQ_API_KEY is missing.")
+    system_prompt = f"You are Agent BHISHMA, a ruthless contrarian. The original sentiment is {original_sentiment}. You must aggressively argue the EXACT OPPOSITE. Output raw JSON: {{'contrarian_thesis': '...', 'significance_score': 8}}"
+    user_prompt = f"Ticker: {ticker}\\nHeadline: {headline}\\nOriginal Thesis: {original_reasoning}"
+    async with httpx.AsyncClient() as client:
+        response = await client.post("https://api.groq.com/openai/v1/chat/completions", headers={"Authorization": f"Bearer {api_key}"}, json={"model": "llama-3.1-8b-instant", "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}], "temperature": 0.2, "response_format": {"type": "json_object"}}, timeout=10.0)
+        response.raise_for_status()
+        return AgentBhishmaAnalysis.model_validate_json(response.json()["choices"][0]["message"]["content"])
+
+@retry(wait=wait_exponential(multiplier=2, min=4, max=20), stop=stop_after_attempt(6))
+async def analyze_headline_bhishma(headline: str, ticker: str, original_sentiment: str, original_reasoning: str) -> AgentBhishmaAnalysis:
+    c = get_client()
+    user_prompt = f"Ticker: {ticker}\\nHeadline: {headline}\\nOriginal Sentiment: {original_sentiment}\\nOriginal Thesis: {original_reasoning}"
+    try:
+        response = await c.aio.models.generate_content(model='gemini-2.5-flash', contents=user_prompt, config=types.GenerateContentConfig(system_instruction=f"You are Agent BHISHMA, a ruthless contrarian. The original sentiment is {original_sentiment}. You must aggressively argue the EXACT OPPOSITE case.", response_mime_type="application/json", response_schema=AgentBhishmaAnalysis, temperature=0.2))
+        return AgentBhishmaAnalysis.model_validate_json(response.text)
+    except ClientError as e:
+        print(f"[Agent BHISHMA] Gemini Error. Falling back to Groq...")
+        return await _analyze_bhishma_with_groq(headline, ticker, original_sentiment, original_reasoning)
+
+async def _analyze_vikramaditya_with_groq(headline: str, ticker: str, original_sentiment: str, original_reasoning: str, contrarian_thesis: str) -> AgentVikramadityaAnalysis:
+    api_key = os.getenv("GROQ_API_KEY")
+    if not api_key: raise ValueError("GROQ_API_KEY is missing.")
+    system_prompt = f"You are Agent VIKRAMADITYA, the Supreme Judge. Review the original {original_sentiment} thesis vs the contrarian thesis. Output raw JSON: {{'approved': true, 'verdict': '...'}}"
+    user_prompt = f"Ticker: {ticker}\\nHeadline: {headline}\\nOriginal Thesis: {original_reasoning}\\nContrarian Thesis: {contrarian_thesis}"
+    async with httpx.AsyncClient() as client:
+        response = await client.post("https://api.groq.com/openai/v1/chat/completions", headers={"Authorization": f"Bearer {api_key}"}, json={"model": "llama-3.1-8b-instant", "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}], "temperature": 0.1, "response_format": {"type": "json_object"}}, timeout=10.0)
+        response.raise_for_status()
+        return AgentVikramadityaAnalysis.model_validate_json(response.json()["choices"][0]["message"]["content"])
+
+@retry(wait=wait_exponential(multiplier=2, min=4, max=20), stop=stop_after_attempt(6))
+async def analyze_headline_vikramaditya(headline: str, ticker: str, original_sentiment: str, original_reasoning: str, contrarian_thesis: str) -> AgentVikramadityaAnalysis:
+    c = get_client()
+    user_prompt = f"Ticker: {ticker}\\nHeadline: {headline}\\nOriginal {original_sentiment} Thesis: {original_reasoning}\\nContrarian Thesis: {contrarian_thesis}"
+    try:
+        response = await c.aio.models.generate_content(model='gemini-2.5-flash', contents=user_prompt, config=types.GenerateContentConfig(system_instruction=f"You are Agent VIKRAMADITYA, the Supreme Judge. Weigh both arguments and decide if the original thesis holds up to the contrarian attack.", response_mime_type="application/json", response_schema=AgentVikramadityaAnalysis, temperature=0.1))
+        return AgentVikramadityaAnalysis.model_validate_json(response.text)
+    except ClientError as e:
+        print(f"[Agent VIKRAMADITYA] Gemini Error. Falling back to Groq...")
+        return await _analyze_vikramaditya_with_groq(headline, ticker, original_sentiment, original_reasoning, contrarian_thesis)
+

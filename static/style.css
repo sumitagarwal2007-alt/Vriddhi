@@ -645,12 +645,12 @@ body {
         display: flex;
         flex-direction: column;
         align-self: stretch;
-        max-height: 840px;
+        max-height: 1340px;
     }
 
     .news-list {
         flex: 1;
-        max-height: 740px;
+        max-height: 1240px;
         overflow-y: auto;
         padding-right: 4px;
     }
@@ -694,4 +694,19 @@ body {
     background: rgba(255, 69, 58, 0.1);
     color: var(--color-bear);
 }
+
+/* Standalone Chart & Learning Panels */
+.chart-panel {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 16px;
+    padding: 20px;
+}
+.learning-panel {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 16px;
+    padding: 20px;
+}
+
 
