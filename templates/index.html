@@ -21,7 +21,10 @@
                 <div class="header-top">
                     <div style="display: flex; align-items: center; gap: 10px;">
                         <img src="/static/logo.png" alt="Vriddhi Quant Logo" style="height: 32px; width: 32px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.15);">
-                        <h1 class="gradient-text" style="margin: 0; line-height: 1;">VRIDDHI <span>QUANT</span></h1>
+                        <div style="display: flex; flex-direction: column;">
+                            <h1 class="gradient-text" style="margin: 0; line-height: 1;">VRIDDHI <span>SIMULATOR</span></h1>
+                            <span style="color: #ff4444; font-size: 0.7rem; font-weight: bold; margin-top: 4px;">PAPER TRADING GAME ONLY.<br>NOT REAL MONEY.<br>NOT FINANCIAL ADVICE. ⚠️</span>
+                        </div>
                     </div>
                     <div class="status-badge" id="market-status">
                         <span class="dot"></span> <span id="market-text">Loading...</span>
@@ -30,7 +33,7 @@
                 <div class="stats-row">
                     <div class="stat-box">
                         <span class="label">Realized P/L</span>
-                        <span class="value" id="total-pnl">$0.00</span>
+                        <span class="value" id="total-pnl">Demo $0.00</span>
                     </div>
                     <div class="stat-box">
                         <span class="label">Win Rate</span>
@@ -62,15 +65,15 @@
                 <div class="kosh-grid">
                     <div class="kosh-item">
                         <span class="label">Portfolio Value</span>
-                        <span class="value highlight-gold" id="kosh-value">$0.00</span>
+                        <span class="value highlight-gold" id="kosh-value">Demo $0.00</span>
                     </div>
                     <div class="kosh-item">
                         <span class="label">Cash Left</span>
-                        <span class="value" id="kosh-cash">$0.00</span>
+                        <span class="value" id="kosh-cash">Demo $0.00</span>
                     </div>
                     <div class="kosh-item">
                         <span class="label">Buying Power</span>
-                        <span class="value" id="kosh-bp">$0.00</span>
+                        <span class="value" id="kosh-bp">Demo $0.00</span>
                     </div>
                 </div>
             </section>

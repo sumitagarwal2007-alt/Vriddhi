@@ -12,6 +12,8 @@ from alpaca.trading.enums import OrderSide, TimeInForce
 
 import database as db
 import ai_processor as ai
+import self_heal
+import traceback
 import market_data as md
 import notifications as notif
 
@@ -201,7 +203,11 @@ async def run_prahari_loop():
             print("[Prahari Loop] Connecting to Alpaca News Stream...")
             await _run_stream(alpaca_stream)
         except Exception as e:
+            tb_str = traceback.format_exc()
             print(f"[Prahari Loop] Stream error: {e}")
+            ai_fix = await self_heal.diagnose_crash("Prahari Loop", e, tb_str)
+            if "Suppressed" not in ai_fix:
+                notif.send_alert("🚨 Engine Crash (Prahari Loop)", f"**Error**: {e}\n\n**AI Diagnosis/Patch**:\n```python\n{ai_fix[:1500]}\n```", 0xFF0000)
             print("[Prahari Loop] Waiting 10 seconds before auto-reconnect...")
             await asyncio.sleep(10)
 
@@ -332,7 +338,11 @@ async def run_waitlist_loop():
                     
                     await db.remove_from_waitlist(ticker)
         except Exception as e:
-            print(f"[Waitlist Loop] Error: {e}")
+            tb_str = traceback.format_exc()
+            print(f"[Waitlist Loop] Fatal Error: {e}")
+            ai_fix = await self_heal.diagnose_crash("Waitlist Loop", e, tb_str)
+            if "Suppressed" not in ai_fix:
+                notif.send_alert("🚨 Engine Crash (Waitlist Loop)", f"**Error**: {e}\n\n**AI Diagnosis/Patch**:\n```python\n{ai_fix[:1500]}\n```", 0xFF0000)
             
         try:
             await asyncio.wait_for(shutdown_event.wait(), timeout=30)
@@ -491,7 +501,11 @@ async def run_chanakya_loop():
                     print(f"[Agent CHANAKYA] Error tracking position {ticker}: {pos_err}")
             
         except Exception as e:
-            print(f"[Agent CHANAKYA] Error: {e}")
+            tb_str = traceback.format_exc()
+            print(f"[Agent CHANAKYA] Fatal Error: {e}")
+            ai_fix = await self_heal.diagnose_crash("Chanakya Loop", e, tb_str)
+            if "Suppressed" not in ai_fix:
+                notif.send_alert("🚨 Engine Crash (Chanakya Loop)", f"**Error**: {e}\n\n**AI Diagnosis/Patch**:\n```python\n{ai_fix[:1500]}\n```", 0xFF0000)
             
         try:
             await asyncio.wait_for(shutdown_event.wait(), timeout=60)
@@ -783,7 +797,11 @@ async def run_chanakya_loop():
                     print(f"[Agent CHANAKYA] Error tracking position {ticker}: {pos_err}")
             
         except Exception as e:
-            print(f"[Agent CHANAKYA] Error: {e}")
+            tb_str = traceback.format_exc()
+            print(f"[Agent CHANAKYA] Fatal Error: {e}")
+            ai_fix = await self_heal.diagnose_crash("Chanakya Loop", e, tb_str)
+            if "Suppressed" not in ai_fix:
+                notif.send_alert("🚨 Engine Crash (Chanakya Loop)", f"**Error**: {e}\n\n**AI Diagnosis/Patch**:\n```python\n{ai_fix[:1500]}\n```", 0xFF0000)
             
         try:
             await asyncio.wait_for(shutdown_event.wait(), timeout=60)
@@ -831,7 +849,11 @@ async def run_premarket_reflection_loop():
                     # Brief pause between reflections to prevent API rate limits if catching up on multiple days
                     await asyncio.sleep(5)
         except Exception as e:
-            print(f"[Agent GURU] Error in self-learning loop: {e}")
+            tb_str = traceback.format_exc()
+            print(f"[Agent GURU] Fatal Error: {e}")
+            ai_fix = await self_heal.diagnose_crash("Guru Loop", e, tb_str)
+            if "Suppressed" not in ai_fix:
+                notif.send_alert("🚨 Engine Crash (Guru Loop)", f"**Error**: {e}\n\n**AI Diagnosis/Patch**:\n```python\n{ai_fix[:1500]}\n```", 0xFF0000)
             
         # Check every 15 minutes
         try:

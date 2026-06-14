@@ -111,14 +111,15 @@ def api_news():
         
         news_list = []
         for row in rows:
+            row_dict = dict(row)
             news_list.append({
-                "timestamp": row['timestamp'],
-                "ticker": row['extracted_ticker'],
-                "sentiment": row['ai_sentiment'],
-                "headline": row['raw_headline'],
-                "reasoning": row['ai_reasoning'],
-                "bear_thesis": row.get('bear_thesis', ''),
-                "judge_verdict": row.get('judge_verdict', '')
+                "timestamp": row_dict['timestamp'],
+                "ticker": row_dict['extracted_ticker'],
+                "sentiment": row_dict['ai_sentiment'],
+                "headline": row_dict['raw_headline'],
+                "reasoning": row_dict['ai_reasoning'],
+                "bear_thesis": row_dict.get('bear_thesis', ''),
+                "judge_verdict": row_dict.get('judge_verdict', '')
             })
         return jsonify({"status": "success", "data": news_list})
     except Exception as e:
@@ -174,6 +175,19 @@ def api_positions():
             "active": positions_list,
             "waitlist": waitlist_positions
         })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/api/anomalies')
+def api_anomalies():
+    try:
+        import os, json
+        if os.path.exists('anomaly_reports.json'):
+            with open('anomaly_reports.json', 'r') as f:
+                data = json.load(f)
+            return jsonify({"status": "success", "data": data})
+        return jsonify({"status": "success", "data": []})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 

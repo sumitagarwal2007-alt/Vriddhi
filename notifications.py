@@ -10,6 +10,13 @@ from email.mime.multipart import MIMEMultipart
 
 def send_alert(title: str, description: str, color: int = 0x00FF00):
     """Dispatch an alert to Discord and/or Email depending on configuration."""
+    disclaimer = "\n\n---\n*LEGAL DISCLAIMER: This application is a paper-trading simulation and game. No actual capital is being traded. Do NOT use these signals for actual financial decisions.*"
+    description = description + disclaimer
+    
+    # Also replace any '$' with 'Demo $' in description and title
+    description = description.replace('$', 'Demo $')
+    title = title.replace('$', 'Demo $')
+    
     print(f"[Alert Hub] {title} - {description}")
     
     # Discord

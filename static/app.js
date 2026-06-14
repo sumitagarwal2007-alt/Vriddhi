@@ -27,7 +27,7 @@ async function fetchStats() {
             const badgeHTML = data.pnl >= 0 
                 ? `<span class="growth-badge positive">▲ BULL</span>`
                 : `<span class="growth-badge negative">▼ BEAR</span>`;
-            pnlEl.innerHTML = `$${data.pnl.toFixed(2)} ${badgeHTML}`;
+            pnlEl.innerHTML = `Demo $${data.pnl.toFixed(2)} ${badgeHTML}`;
             pnlEl.className = 'value ' + (data.pnl >= 0 ? 'val-positive' : 'val-negative');
             
             const winRateEl = document.getElementById('win-rate');
@@ -68,9 +68,9 @@ async function fetchKosh() {
                 ? `<span class="growth-badge positive">▲ ${koshGrowthText}</span>`
                 : `<span class="growth-badge negative">▼ ${koshGrowthText}</span>`;
                 
-            document.getElementById('kosh-value').innerHTML = `$${data.portfolio_value.toLocaleString(undefined, {minimumFractionDigits: 2})} ${koshBadge}`;
-            document.getElementById('kosh-cash').textContent = `$${data.cash.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
-            document.getElementById('kosh-bp').textContent = `$${data.buying_power.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
+            document.getElementById('kosh-value').innerHTML = `Demo $${data.portfolio_value.toLocaleString(undefined, {minimumFractionDigits: 2})} ${koshBadge}`;
+            document.getElementById('kosh-cash').textContent = `Demo $${data.cash.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
+            document.getElementById('kosh-bp').textContent = `Demo $${data.buying_power.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
         }
     } catch (e) {
         console.error("Kosh error", e);
@@ -102,16 +102,16 @@ async function fetchPositions() {
                                 ${trendBadge}
                             </div>
                         </td>
-                        <td class="txt-right">$${p.current_price.toFixed(2)}</td>
+                        <td class="txt-right">Demo $${p.current_price.toFixed(2)}</td>
                         <td class="txt-right">
                             <div>${p.qty.toFixed(3)} sh</div>
-                            <div class="small-detail">Cost: $${p.cost_basis.toFixed(2)}</div>
+                            <div class="small-detail">Cost: Demo $${p.cost_basis.toFixed(2)}</div>
                         </td>
                         <td class="txt-right ${p.unrealized_pl >= 0 ? 'val-positive' : 'val-negative'}">
-                            <div>${plPrefix}$${Math.abs(p.unrealized_pl).toFixed(2)}</div>
+                            <div>${plPrefix}Demo $${Math.abs(p.unrealized_pl).toFixed(2)}</div>
                             <div class="small-detail">${p.unrealized_plpc.toFixed(2)}%</div>
                         </td>
-                        <td class="txt-right stop-col">$${p.stop_price ? p.stop_price.toFixed(2) : 'N/A'}</td>
+                        <td class="txt-right stop-col">Demo $${p.stop_price ? p.stop_price.toFixed(2) : 'N/A'}</td>
                     </tr>
                 `}).join('');
             }
@@ -131,7 +131,7 @@ async function fetchPositions() {
                                 <span class="growth-badge" style="background:rgba(255,255,255,0.03); color:#888; font-size:8.5px; padding:1px 4px; margin-left:4px;">🐂 Wait</span>
                             </div>
                         </td>
-                        <td class="txt-right">$${w.initial_price.toFixed(2)}</td>
+                        <td class="txt-right">Demo $${w.initial_price.toFixed(2)}</td>
                         <td class="txt-right"><span class="highlight-gold">${w.significance_score || 7}</span></td>
                         <td class="txt-right small-detail">${statusText}</td>
                     </tr>
@@ -348,8 +348,8 @@ function renderFeedbackList() {
                     <div class="learn-section">
                         <div class="learn-section-title">⚔️ Execution Metrics</div>
                         <div class="learn-section-content">
-                            Bought at: <strong>$${f.buy_price.toFixed(2)}</strong> | 
-                            Sold at: <strong>$${f.sell_price.toFixed(2)}</strong> | 
+                            Bought at: <strong>Demo $${f.buy_price.toFixed(2)}</strong> | 
+                            Sold at: <strong>Demo $${f.sell_price.toFixed(2)}</strong> | 
                             Closed time: <strong>${f.timestamp.includes('T') ? f.timestamp.split('T')[1].substring(0,8) : f.timestamp}</strong>
                         </div>
                     </div>
