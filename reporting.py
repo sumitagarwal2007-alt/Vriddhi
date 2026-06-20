@@ -23,29 +23,57 @@ def generate_report():
         print(err)
         return err
         
-    buys = df[df['action'] == 'BUY'].copy()
-    sells = df[df['action'] == 'SELL'].copy()
+    # Sort values to process ledger linearly
+    df = df.sort_values(by='timestamp')
     
-    # Naive merge assuming 1 BUY and 1 SELL per ticker for MVP tracking
-    closed_trades = pd.merge(buys, sells, on='ticker', suffixes=('_buy', '_sell'))
+    open_positions_calc = {}
+    asset_pnl = {}
+    total_realized_pl = 0.0
     
-    if closed_trades.empty:
-        err = f"No closed trades yet to analyze performance.\nCurrently open positions: {len(buys)}"
-        print(err)
-        return err
-    
-    # Calculate Realized Profit / Loss
-    closed_trades['realized_pl'] = (closed_trades['execution_price_sell'] - closed_trades['execution_price_buy']) * closed_trades['share_qty_buy']
-    closed_trades['win'] = closed_trades['realized_pl'] > 0
-    
-    total_trades = len(closed_trades)
-    winning_trades = closed_trades['win'].sum()
-    win_rate = (winning_trades / total_trades) * 100 if total_trades > 0 else 0.0
-    
-    total_realized_pl = closed_trades['realized_pl'].sum()
-    
-    top_assets = closed_trades.groupby('ticker')['realized_pl'].sum().reset_index()
-    top_assets = top_assets.sort_values(by='realized_pl', ascending=False)
+    for _, row in df.iterrows():
+        ticker = row['ticker']
+        action = row['action']
+        qty = float(row['share_qty'])
+        price = float(row['execution_price'])
+        
+        if ticker not in open_positions_calc:
+            open_positions_calc[ticker] = {'qty': 0.0, 'total_cost': 0.0}
+        if ticker not in asset_pnl:
+            asset_pnl[ticker] = 0.0
+            
+        pos = open_positions_calc[ticker]
+        if action == 'BUY':
+            pos['qty'] += qty
+            pos['total_cost'] += qty * price
+        elif action == 'SELL':
+            if pos['qty'] > 0:
+                avg_cost = pos['total_cost'] / pos['qty']
+                realized = (price - avg_cost) * qty
+                total_realized_pl += realized
+                asset_pnl[ticker] += realized
+                
+                pos['qty'] -= qty
+                pos['total_cost'] -= avg_cost * qty
+                if pos['qty'] <= 0.0001:
+                    pos['qty'] = 0.0
+                    pos['total_cost'] = 0.0
+
+    try:
+        df_tf = pd.read_sql_query("SELECT * FROM trade_feedback", conn)
+        total_trades = len(df_tf)
+        if total_trades > 0:
+            win_rate = float((df_tf['pnl_pct'] > 0).sum() / total_trades * 100)
+        else:
+            win_rate = 0.0
+    except Exception:
+        total_trades = 0
+        win_rate = 0.0
+
+    # Top Assets
+    top_assets_list = [{'ticker': t, 'realized_pl': p} for t, p in asset_pnl.items() if p != 0.0]
+    top_assets = pd.DataFrame(top_assets_list)
+    if not top_assets.empty:
+        top_assets = top_assets.sort_values(by='realized_pl', ascending=False)
     
     # Count total executed orders
     total_orders = len(df)

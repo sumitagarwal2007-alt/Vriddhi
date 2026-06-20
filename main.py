@@ -4,10 +4,13 @@ import signal
 import json
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
+import aiosqlite
+import joblib
+import numpy as np
 
 from alpaca.data.live.news import NewsDataStream
 from alpaca.trading.client import TradingClient
-from alpaca.trading.requests import MarketOrderRequest
+from alpaca.trading.requests import MarketOrderRequest, LimitOrderRequest
 from alpaca.trading.enums import OrderSide, TimeInForce
 
 import database as db
@@ -18,6 +21,16 @@ import market_data as md
 import notifications as notif
 
 load_dotenv()
+
+# Load ML Models
+try:
+    ML_MODEL = joblib.load('model.pkl')
+    ML_VECTORIZER = joblib.load('vectorizer.pkl')
+    print("[SYSTEM] Successfully loaded ML Gatekeeper Model.")
+except Exception as e:
+    ML_MODEL = None
+    ML_VECTORIZER = None
+    print(f"[SYSTEM] Could not load ML model: {e}")
 
 API_KEY = os.getenv("ALPACA_API_KEY")
 SECRET_KEY = os.getenv("ALPACA_SECRET_KEY")
@@ -51,6 +64,39 @@ _orig_print = builtins.print
 def _timestamped_print(*args, **kwargs):
     _orig_print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]", *args, **kwargs)
 builtins.print = _timestamped_print
+
+async def execute_and_wait_for_fill(trading_client, order_request, max_wait_seconds=10):
+    """Submits an order and polls until filled or partially filled."""
+    try:
+        order = trading_client.submit_order(order_data=order_request)
+        order_id = str(order.id)
+        
+        for _ in range(max_wait_seconds):
+            await asyncio.sleep(1.0)
+            updated_order = trading_client.get_order_by_id(order_id)
+            if updated_order.status.value in ('filled', 'partially_filled'):
+                return {
+                    'status': updated_order.status.value,
+                    'order_id': order_id,
+                    'filled_qty': float(updated_order.filled_qty) if updated_order.filled_qty else 0.0,
+                    'filled_avg_price': float(updated_order.filled_avg_price) if updated_order.filled_avg_price else 0.0
+                }
+                
+        # Timeout - check one last time
+        updated_order = trading_client.get_order_by_id(order_id)
+        filled_qty = float(updated_order.filled_qty) if updated_order.filled_qty else 0.0
+        if filled_qty > 0:
+            return {
+                'status': 'partially_filled',
+                'order_id': order_id,
+                'filled_qty': filled_qty,
+                'filled_avg_price': float(updated_order.filled_avg_price) if updated_order.filled_avg_price else 0.0
+            }
+        else:
+            return {'status': 'FAILED', 'reason': 'Order not filled in time', 'order_id': order_id}
+            
+    except Exception as e:
+        return {'status': 'FAILED', 'reason': str(e), 'order_id': 'UNKNOWN'}
 
 def is_market_open() -> bool:
     """Returns True if the US Stock Market is currently open."""
@@ -98,34 +144,55 @@ async def handle_news(news):
             if not is_eligible or sentiment_val not in ["BULLISH", "BEARISH"]:
                 continue
                 
-            print(f"[Prahari Loop] Invoking Agent BHISHMA for a contrarian attack on {ticker}...")
+            # --- ML APPROVAL GATE & RATE LIMITING ---
+            
+            # Check Rate Limits
             try:
-                bhishma_analysis = await ai.analyze_headline_bhishma(headline, ticker, sentiment_val, ticker_analysis.reasoning)
-                print(f"[Agent BHISHMA] Contrarian Score: {bhishma_analysis.significance_score}")
-                bear_thesis = bhishma_analysis.contrarian_thesis
+                async with aiosqlite.connect(db.DB_NAME) as db_conn:
+                    # check active positions
+                    async with db_conn.execute("SELECT COUNT(*) FROM active_positions") as cur:
+                        active_count = (await cur.fetchone())[0]
+                    if active_count >= 5: # Max 5 active trades ($10k / $2k)
+                        print(f"[Prahari] Max active positions ({active_count}/5) reached. Skipping {ticker}.")
+                        continue
+                        
+                    # check today's trades
+                    today_str = datetime.now().strftime("%Y-%m-%d")
+                    async with db_conn.execute("SELECT COUNT(*) FROM transactions WHERE action='BUY' AND timestamp LIKE ?", (f"{today_str}%",)) as cur:
+                        today_trades = (await cur.fetchone())[0]
+                    if today_trades >= 2:
+                        print(f"[Prahari] Daily trade limit ({today_trades}/2) reached today. Skipping {ticker}.")
+                        continue
             except Exception as e:
-                print(f"[Prahari Loop] Agent BHISHMA error: {e}")
-                bear_thesis = "Bhishma offline."
-                
-            print(f"[Prahari Loop] Invoking Agent VIKRAMADITYA (Judge) to resolve the debate...")
-            try:
-                vikram_analysis = await ai.analyze_headline_vikramaditya(headline, ticker, sentiment_val, ticker_analysis.reasoning, bear_thesis)
-                print(f"[Agent VIKRAMADITYA] Verdict: Approved={vikram_analysis.approved} | {vikram_analysis.verdict}")
-                approved = vikram_analysis.approved
-                verdict = vikram_analysis.verdict
-            except Exception as e:
-                print(f"[Prahari Loop] Agent VIKRAMADITYA error: {e}")
-                approved = True
-                verdict = "Judge offline - auto-approved"
-                
-            if not approved:
-                print(f"[Prahari Loop] {ticker} {sentiment_val} thesis REJECTED by Judge. Reason: {verdict}")
-                # We could log this to signals_log, but for brevity we'll skip DB logging of rejections for now
+                print(f"[Prahari DB Limit Check Error] {e}")
+
+            current_price = md.get_live_price(ticker)
+            if current_price <= 0:
                 continue
-                
-            if ticker_analysis.significance_score < 7:
-                print(f"[Prahari Loop] {ticker} ignored. Significance score {ticker_analysis.significance_score} is too low.")
-                continue
+
+            if ML_MODEL and ML_VECTORIZER:
+                try:
+                    text_data = str(headline) + " " + str(ticker_analysis.reasoning)
+                    text_features = ML_VECTORIZER.transform([text_data]).toarray()
+                    
+                    now = datetime.now()
+                    buy_hour = now.hour + now.minute / 60.0
+                    
+                    X_num = np.array([[ticker_analysis.significance_score, current_price, buy_hour]])
+                    X = np.hstack([X_num, text_features])
+                    
+                    prob = ML_MODEL.predict_proba(X)[0]
+                    win_prob = prob[1] if len(prob) > 1 else 0.0
+                    
+                    if win_prob < 0.65:
+                        print(f"[ML Gatekeeper] {ticker} {sentiment_val} REJECTED: Only {win_prob*100:.1f}% win probability.")
+                        await db.log_signal(timestamp, headline, ticker, sentiment_val, ticker_analysis.reasoning, 1, ticker_analysis.significance_score, 0, f"ML Reject: {win_prob*100:.1f}% Win Prob", 0, "", "")
+                        continue
+                    else:
+                        print(f"[ML Gatekeeper] {ticker} {sentiment_val} APPROVED: {win_prob*100:.1f}% win probability!")
+                        await db.log_signal(timestamp, headline, ticker, sentiment_val, ticker_analysis.reasoning, 1, ticker_analysis.significance_score, 1, f"ML Approve: {win_prob*100:.1f}% Win Prob", 10, "", "")
+                except Exception as e:
+                    print(f"[ML Gatekeeper Error] {e}")
                 
             # Macro trend check
             if sentiment_val == "BULLISH" and md.get_spy_performance() < -0.01:
@@ -135,11 +202,10 @@ async def handle_news(news):
                 print(f"[Prahari Loop] {ticker} BEARISH ignored. SPY Macro Trend is overwhelmingly positive.")
                 continue
             
-            current_price = md.get_live_price(ticker)
             if current_price <= 0:
                 continue
             
-            stop_percent = md.calculate_dynamic_stop(ticker, current_price)
+            stop_percent = md.calculate_atr_stop(ticker, current_price)
             
             if is_market_open():
                 target_time = (datetime.now() + timedelta(minutes=3)).isoformat()
@@ -244,6 +310,10 @@ async def run_waitlist_loop():
                     rsi, vwap = md.get_rsi_vwap(ticker)
                     
                     if direction == 'LONG':
+                        if current_price > (vwap * 1.002):
+                            print(f"[Waitlist] {ticker} at ${current_price} is above VWAP (${vwap:.2f}). Waiting for pullback.")
+                            continue
+                            
                         if rsi > 70:
                             print(f"[Waitlist] {ticker} RSI too high ({rsi:.1f}). Overbought. Dropping LONG.")
                             await db.remove_from_waitlist(ticker)
@@ -255,7 +325,7 @@ async def run_waitlist_loop():
                             await db.remove_from_waitlist(ticker)
                             continue
                             
-                    print(f"[Waitlist] Technicals Confirmed for {ticker}! (Direction: {direction}, RSI: {rsi:.1f}, VWAP: {vwap:.2f}). Executing {direction}.")
+                    print(f"[Waitlist] VWAP/Technicals Confirmed for {ticker}! (Direction: {direction}, Price: ${current_price}, VWAP: ${vwap:.2f}). Executing Limit Order.")
                     
                     # V2 Kelly Criterion Sizing
                     portfolio_equity = 10000.0
@@ -280,34 +350,26 @@ async def run_waitlist_loop():
                     side = OrderSide.BUY if direction == 'LONG' else OrderSide.SELL
                     
                     if trading_client:
-                        try:
-                            req = MarketOrderRequest(
-                                symbol=ticker,
-                                qty=qty,
-                                side=side,
-                                time_in_force=TimeInForce.DAY
-                            )
-                            order = trading_client.submit_order(order_data=req)
-                            order_id = str(order.id)
-                            status = order.status.value
-                            
-                            await asyncio.sleep(2.0)
-                            try:
-                                updated_order = trading_client.get_order_by_id(order_id)
-                                status = updated_order.status.value
-                                if updated_order.filled_avg_price:
-                                    current_price = float(updated_order.filled_avg_price)
-                                if updated_order.filled_qty:
-                                    qty = float(updated_order.filled_qty)
-                            except:
-                                pass
-                        except Exception as e:
-                            print(f"[Alpaca API] {direction} error: {e}")
-                            status = "FAILED"
+                        # Marketable Limit Order (pegged exactly to current price to prevent flash crash slippage)
+                        req = LimitOrderRequest(
+                            symbol=ticker,
+                            qty=qty,
+                            side=side,
+                            time_in_force=TimeInForce.DAY,
+                            limit_price=round(current_price * 1.001, 2) if direction == 'LONG' else round(current_price * 0.999, 2)
+                        )
+                        result = await execute_and_wait_for_fill(trading_client, req)
+                        status = result['status']
+                        order_id = result['order_id']
+                        if status in ('filled', 'partially_filled'):
+                            qty = result['filled_qty']
+                            current_price = result['filled_avg_price']
+                        elif status == 'FAILED':
+                            print(f"[Alpaca API] {direction} error: {result.get('reason', 'Unknown')}")
                     else:
                         print(f"[Waitlist] Mocking {direction} order for {qty:.4f} shares of {ticker}")
                         
-                    if status != "FAILED":
+                    if status not in ("FAILED", "canceled", "rejected", "expired") and qty > 0:
                         timestamp = datetime.now().isoformat()
                         await db.log_transaction(
                             timestamp=timestamp,
@@ -419,21 +481,22 @@ async def run_chanakya_loop():
                         status = "FILLED"
                         side = OrderSide.SELL if direction == 'LONG' else OrderSide.BUY
                         if trading_client:
-                            try:
-                                req = MarketOrderRequest(
-                                    symbol=ticker,
-                                    qty=sell_qty,
-                                    side=side,
-                                    time_in_force=TimeInForce.DAY
-                                )
-                                order = trading_client.submit_order(order_data=req)
-                                order_id = str(order.id)
-                                status = order.status.value
-                            except Exception as e:
-                                print(f"[Alpaca API] Take-Profit Sell error: {e}")
-                                status = "FAILED"
+                            req = MarketOrderRequest(
+                                symbol=ticker,
+                                qty=sell_qty,
+                                side=side,
+                                time_in_force=TimeInForce.DAY
+                            )
+                            result = await execute_and_wait_for_fill(trading_client, req)
+                            status = result['status']
+                            order_id = result['order_id']
+                            if status in ('filled', 'partially_filled'):
+                                sell_qty = result['filled_qty']
+                                current_price = result['filled_avg_price']
+                            elif status == 'FAILED':
+                                print(f"[Alpaca API] Take-Profit Sell error: {result.get('reason', 'Unknown')}")
                         
-                        if status != "FAILED":
+                        if status not in ("FAILED", "canceled", "rejected", "expired") and sell_qty > 0:
                             timestamp = datetime.now().isoformat()
                             await db.log_transaction(
                                 timestamp=timestamp,
@@ -478,11 +541,28 @@ async def run_chanakya_loop():
                                 )
                                 order_id = str(order.id)
                                 status = order.status.value
+                                for _ in range(10):
+                                    await asyncio.sleep(1.0)
+                                    updated_order = trading_client.get_order_by_id(order_id)
+                                    if updated_order.status.value in ('filled', 'partially_filled'):
+                                        status = updated_order.status.value
+                                        share_qty = float(updated_order.filled_qty) if updated_order.filled_qty else share_qty
+                                        current_price = float(updated_order.filled_avg_price) if updated_order.filled_avg_price else current_price
+                                        break
+                                else:
+                                    updated_order = trading_client.get_order_by_id(order_id)
+                                    filled_qty = float(updated_order.filled_qty) if updated_order.filled_qty else 0.0
+                                    if filled_qty > 0:
+                                        status = 'partially_filled'
+                                        share_qty = filled_qty
+                                        current_price = float(updated_order.filled_avg_price) if updated_order.filled_avg_price else current_price
+                                    else:
+                                        status = "FAILED"
                             except Exception as e:
                                 print(f"[Alpaca API] Liquidation error: {e}")
                                 status = "FAILED"
                         
-                        if status != "FAILED":
+                        if status not in ("FAILED", "canceled", "rejected", "expired") and share_qty > 0:
                             timestamp = datetime.now().isoformat()
                             await db.log_transaction(
                                 timestamp=timestamp,
@@ -613,7 +693,7 @@ async def run_chanakya_loop():
                     if ticker not in local_dict:
                         if ticker != 'SH':
                             current_price = md.get_live_price(ticker)
-                            stop_percent = md.calculate_dynamic_stop(ticker, current_price) if current_price > 0 else 0.025
+                            stop_percent = md.calculate_atr_stop(ticker, current_price) if current_price > 0 else 0.05
                             await db.add_active_position(ticker, current_price, qty, current_price, stop_percent, datetime.now().isoformat())
                             local_pos = {
                                 'ticker': ticker, 'purchase_price': current_price, 'share_qty': qty, 
@@ -642,15 +722,16 @@ async def run_chanakya_loop():
                     order_id = "MOCK_HEDGE"
                     status = "FILLED"
                     if trading_client:
-                        try:
-                            req = MarketOrderRequest(symbol="SH", qty=qty, side=OrderSide.BUY, time_in_force=TimeInForce.DAY)
-                            order = trading_client.submit_order(order_data=req)
-                            order_id = str(order.id)
-                            status = order.status.value
-                        except Exception as e:
-                            print(f"[Alpaca API] SH Hedge error: {e}")
-                            status = "FAILED"
-                    if status != "FAILED":
+                        req = MarketOrderRequest(symbol="SH", qty=qty, side=OrderSide.BUY, time_in_force=TimeInForce.DAY)
+                        result = await execute_and_wait_for_fill(trading_client, req)
+                        status = result['status']
+                        order_id = result['order_id']
+                        if status in ('filled', 'partially_filled'):
+                            qty = result['filled_qty']
+                            sh_price = result['filled_avg_price']
+                        elif status == 'FAILED':
+                            print(f"[Alpaca API] SH Hedge error: {result.get('reason', 'Unknown')}")
+                    if status not in ("FAILED", "canceled", "rejected", "expired") and qty > 0:
                         ts = datetime.now().isoformat()
                         await db.log_transaction(ts, order_id, "SH", "BUY", qty, sh_price, "MARKET", status)
                         await db.add_active_position("SH", sh_price, qty, sh_price, 0.05, ts)
@@ -665,15 +746,16 @@ async def run_chanakya_loop():
                 order_id = "MOCK_HEDGE_SELL"
                 status = "FILLED"
                 if trading_client:
-                    try:
-                        req = MarketOrderRequest(symbol="SH", qty=sh_qty, side=OrderSide.SELL, time_in_force=TimeInForce.DAY)
-                        order = trading_client.submit_order(order_data=req)
-                        order_id = str(order.id)
-                        status = order.status.value
-                    except Exception as e:
-                        print(f"[Alpaca API] SH Hedge Sell error: {e}")
-                        status = "FAILED"
-                if status != "FAILED":
+                    req = MarketOrderRequest(symbol="SH", qty=sh_qty, side=OrderSide.SELL, time_in_force=TimeInForce.DAY)
+                    result = await execute_and_wait_for_fill(trading_client, req)
+                    status = result['status']
+                    order_id = result['order_id']
+                    if status in ('filled', 'partially_filled'):
+                        sh_qty = result['filled_qty']
+                        sh_price = result['filled_avg_price']
+                    elif status == 'FAILED':
+                        print(f"[Alpaca API] SH Hedge Sell error: {result.get('reason', 'Unknown')}")
+                if status not in ("FAILED", "canceled", "rejected", "expired") and sh_qty > 0:
                     ts = datetime.now().isoformat()
                     await db.log_transaction(ts, order_id, "SH", "SELL", sh_qty, sh_price, "MARKET", status)
                     await db.remove_active_position("SH")
@@ -712,23 +794,24 @@ async def run_chanakya_loop():
                         order_id = "MOCK_SELL_HALF"
                         status = "FILLED"
                         if trading_client:
-                            try:
-                                req = MarketOrderRequest(
-                                    symbol=ticker,
-                                    qty=sell_qty,
-                                    side=OrderSide.SELL,
-                                    time_in_force=TimeInForce.DAY
-                                )
-                                order = trading_client.submit_order(order_data=req)
-                                order_id = str(order.id)
-                                status = order.status.value
-                            except Exception as e:
-                                print(f"[Alpaca API] Take-Profit Sell error: {e}")
-                                status = "FAILED"
+                            req = MarketOrderRequest(
+                                symbol=ticker,
+                                qty=sell_qty,
+                                side=OrderSide.SELL,
+                                time_in_force=TimeInForce.DAY
+                            )
+                            result = await execute_and_wait_for_fill(trading_client, req)
+                            status = result['status']
+                            order_id = result['order_id']
+                            if status in ('filled', 'partially_filled'):
+                                sell_qty = result['filled_qty']
+                                current_price = result['filled_avg_price']
+                            elif status == 'FAILED':
+                                print(f"[Alpaca API] Take-Profit Sell error: {result.get('reason', 'Unknown')}")
                         else:
                             print(f"[Agent CHANAKYA] Mocking take-profit sell order for {ticker}")
                         
-                        if status != "FAILED":
+                        if status not in ("FAILED", "canceled", "rejected", "expired") and sell_qty > 0:
                             timestamp = datetime.now().isoformat()
                             await db.log_transaction(
                                 timestamp=timestamp,
@@ -768,13 +851,30 @@ async def run_chanakya_loop():
                                 )
                                 order_id = str(order.id)
                                 status = order.status.value
+                                for _ in range(10):
+                                    await asyncio.sleep(1.0)
+                                    updated_order = trading_client.get_order_by_id(order_id)
+                                    if updated_order.status.value in ('filled', 'partially_filled'):
+                                        status = updated_order.status.value
+                                        share_qty = float(updated_order.filled_qty) if updated_order.filled_qty else share_qty
+                                        current_price = float(updated_order.filled_avg_price) if updated_order.filled_avg_price else current_price
+                                        break
+                                else:
+                                    updated_order = trading_client.get_order_by_id(order_id)
+                                    filled_qty = float(updated_order.filled_qty) if updated_order.filled_qty else 0.0
+                                    if filled_qty > 0:
+                                        status = 'partially_filled'
+                                        share_qty = filled_qty
+                                        current_price = float(updated_order.filled_avg_price) if updated_order.filled_avg_price else current_price
+                                    else:
+                                        status = "FAILED"
                             except Exception as e:
                                 print(f"[Alpaca API] Sell error: {e}")
                                 status = "FAILED"
                         else:
                             print(f"[Agent CHANAKYA] Mocking sell order for {ticker}")
                         
-                        if status != "FAILED":
+                        if status not in ("FAILED", "canceled", "rejected", "expired") and share_qty > 0:
                             timestamp = datetime.now().isoformat()
                             await db.log_transaction(
                                 timestamp=timestamp,

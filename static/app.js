@@ -69,6 +69,7 @@ async function fetchKosh() {
                 : `<span class="growth-badge negative">▼ ${koshGrowthText}</span>`;
                 
             document.getElementById('kosh-value').innerHTML = `Demo $${data.portfolio_value.toLocaleString(undefined, {minimumFractionDigits: 2})} ${koshBadge}`;
+            document.getElementById('kosh-invested').textContent = `Demo $${data.total_invested.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
             document.getElementById('kosh-cash').textContent = `Demo $${data.cash.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
             document.getElementById('kosh-bp').textContent = `Demo $${data.buying_power.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
         }
@@ -105,7 +106,8 @@ async function fetchPositions() {
                         <td class="txt-right">Demo $${p.current_price.toFixed(2)}</td>
                         <td class="txt-right">
                             <div>${p.qty.toFixed(3)} sh</div>
-                            <div class="small-detail">Cost: Demo $${p.cost_basis.toFixed(2)}</div>
+                            <div class="small-detail">Invested: Demo $${p.cost_basis.toLocaleString(undefined, {minimumFractionDigits: 2})}</div>
+                            <div class="small-detail">Avg: $${p.avg_entry_price.toFixed(2)}</div>
                         </td>
                         <td class="txt-right ${p.unrealized_pl >= 0 ? 'val-positive' : 'val-negative'}">
                             <div>${plPrefix}Demo $${Math.abs(p.unrealized_pl).toFixed(2)}</div>

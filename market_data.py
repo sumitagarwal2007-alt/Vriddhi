@@ -69,12 +69,12 @@ def get_live_price(ticker: str) -> float:
 def calculate_dynamic_stop(ticker: str, current_price: float) -> float:
     """
     Fetch daily price range to determine volatility.
-    If highly volatile, wider 5.0% stop.
-    If stable large-cap anchor, tighter 2.5% stop.
+    If highly volatile, wider 8.0% stop.
+    If stable large-cap anchor, tighter 5.0% stop.
     """
     token = os.getenv("FINNHUB_TOKEN")
     if not token or token == "YOUR_FINNHUB_KEY":
-        return 0.025 # Default tight stop
+        return 0.05 # Default wider stop for multi-day swing
 
     url = f"https://finnhub.io/api/v1/quote?symbol={ticker}&token={token}"
     resp = _safe_get(url)
@@ -86,10 +86,10 @@ def calculate_dynamic_stop(ticker: str, current_price: float) -> float:
             if high > 0 and low > 0:
                 volatility_pct = (high - low) / low
                 if volatility_pct > 0.03: # >3% intraday range
-                    return 0.05
+                    return 0.08
         except Exception as e:
             print(f"[Gateway YUKTI] JSON parsing error for {ticker} volatility: {e}")
-    return 0.025
+    return 0.05
 
 def get_spy_performance() -> float:
     """Returns the daily percentage change of SPY."""
@@ -269,3 +269,62 @@ def calculate_kelly_position_size(portfolio_equity: float, win_rate: float, win_
     
     return max(100.0, portfolio_equity * allocation_pct)
 
+def calculate_atr_stop(ticker: str, current_price: float) -> float:
+    """
+    Calculates a dynamic stop loss percentage based on 2x the 14-day Average True Range (ATR).
+    Provides institutional-grade volatility scaling.
+    """
+    if current_price <= 0:
+        return 0.05
+        
+    API_KEY = os.getenv('ALPACA_API_KEY')
+    SECRET_KEY = os.getenv('ALPACA_SECRET_KEY')
+    if not API_KEY or API_KEY == "YOUR_ALPACA_KEY":
+        return 0.05 # Mock default
+        
+    client = StockHistoricalDataClient(API_KEY, SECRET_KEY)
+    
+    end = datetime.now()
+    start = end - timedelta(days=30) # Fetch 30 days to guarantee 14 trading days
+    
+    req = StockBarsRequest(
+        symbol_or_symbols=[ticker],
+        timeframe=TimeFrame.Day,
+        start=start,
+        end=end
+    )
+    
+    try:
+        bars = client.get_stock_bars(req)
+        if not bars.data or ticker not in bars.data:
+            return 0.05
+            
+        ticker_bars = bars.data[ticker]
+        if len(ticker_bars) < 15:
+            return 0.05
+            
+        true_ranges = []
+        for i in range(1, len(ticker_bars)):
+            high = ticker_bars[i].high
+            low = ticker_bars[i].low
+            prev_close = ticker_bars[i-1].close
+            
+            tr1 = high - low
+            tr2 = abs(high - prev_close)
+            tr3 = abs(low - prev_close)
+            true_ranges.append(max(tr1, tr2, tr3))
+            
+        # Get the 14-day Average True Range
+        recent_trs = true_ranges[-14:]
+        atr = sum(recent_trs) / len(recent_trs)
+        
+        # We want a 2x ATR stop
+        stop_dollar = 2 * atr
+        stop_percent = stop_dollar / current_price
+        
+        # Bound it between 3% and 15%
+        return max(0.03, min(0.15, stop_percent))
+        
+    except Exception as e:
+        print(f"[Gateway YUKTI] Error calculating ATR for {ticker}: {e}")
+        return 0.05

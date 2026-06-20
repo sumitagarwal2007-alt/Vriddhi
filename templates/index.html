@@ -3,177 +3,294 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Vriddhi | God's Eye</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Outfit:wght@500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=109">
+    <title>Vriddhi Quant Terminal</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css?v=200">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
-    <div class="glow-bg"></div>
-    <div class="container">
-        
-        <!-- Left Column Container -->
-        <div class="dashboard-left">
-            <!-- Header -->
-            <header class="glass-panel">
-                <div class="header-top">
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <img src="/static/logo.png" alt="Vriddhi Quant Logo" style="height: 32px; width: 32px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.15);">
-                        <div style="display: flex; flex-direction: column;">
-                            <h1 class="gradient-text" style="margin: 0; line-height: 1;">VRIDDHI <span>SIMULATOR</span></h1>
-                            <span style="color: #ff4444; font-size: 0.7rem; font-weight: bold; margin-top: 4px;">PAPER TRADING GAME ONLY.<br>NOT REAL MONEY.<br>NOT FINANCIAL ADVICE. ⚠️</span>
+    <div class="app-layout">
+        <!-- Sidebar -->
+        <aside class="sidebar glass-panel">
+            <div class="logo-container">
+                <i data-lucide="hexagon" class="logo-icon"></i>
+                <div>
+                    <h1 class="logo-text">VRIDDHI</h1>
+                    <span class="sub-logo">QUANT TERMINAL</span>
+                </div>
+            </div>
+            
+            <div class="market-status" id="market-status">
+                <div class="pulse-dot"></div>
+                <span id="market-text">CONNECTING...</span>
+            </div>
+
+            <nav class="nav-menu">
+                <a href="#" class="nav-item active"><i data-lucide="layout-dashboard"></i> Dashboard</a>
+                <a href="#" class="nav-item" onclick="alert('Portfolio Module: Coming Soon in V2.0'); return false;"><i data-lucide="briefcase"></i> Portfolio</a>
+                <a href="#" class="nav-item" onclick="alert('Algorithm Studio: Coming Soon in V2.0'); return false;"><i data-lucide="activity"></i> Algorithms</a>
+            </nav>
+
+            <div class="sidebar-stats">
+                <div class="stat-card">
+                    <span class="stat-label">Win Rate (ML)</span>
+                    <span class="stat-value highlight-green" id="win-rate">0.0%</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">Total Trades</span>
+                    <span class="stat-value" id="total-trades">0</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Top Row: Kosh (Treasury) -->
+            <div class="top-bar glass-panel">
+                <div class="kosh-metrics">
+                    <div class="metric">
+                        <span class="label">NET LIQUIDITY</span>
+                        <span class="value" id="kosh-value">$0.00</span>
+                    </div>
+                    <div class="metric">
+                        <span class="label">REALIZED P/L</span>
+                        <span class="value" id="total-pnl">$0.00</span>
+                    </div>
+                    <div class="metric">
+                        <span class="label">CAPITAL DEPLOYED</span>
+                        <span class="value" id="kosh-invested">$0.00</span>
+                    </div>
+                    <div class="metric">
+                        <span class="label">BUYING POWER</span>
+                        <span class="value" id="kosh-bp">$0.00</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="dashboard-grid">
+                <!-- Left Column -->
+                <div class="grid-left">
+                    <section class="glass-panel">
+                        <div class="panel-header">
+                            <h2><i data-lucide="trending-up"></i> Performance Alpha</h2>
                         </div>
-                    </div>
-                    <div class="status-badge" id="market-status">
-                        <span class="dot"></span> <span id="market-text">Loading...</span>
-                    </div>
-                </div>
-                <div class="stats-row">
-                    <div class="stat-box">
-                        <span class="label">Realized P/L</span>
-                        <span class="value" id="total-pnl">Demo $0.00</span>
-                    </div>
-                    <div class="stat-box">
-                        <span class="label">Win Rate</span>
-                        <span class="value" id="win-rate">0.0%</span>
-                    </div>
-                    <div class="stat-box">
-                        <span class="label">Trades</span>
-                        <span class="value" id="total-trades">0</span>
-                    </div>
-                </div>
-            </header>
+                        <div class="chart-wrapper">
+                            <canvas id="performance-chart"></canvas>
+                        </div>
+                    </section>
 
-            <!-- Performance Chart -->
-            <section class="glass-panel chart-panel">
-                <div class="panel-header">
-                    <h2>📈 Performance Trend vs SPY</h2>
-                    <span class="pulse-indicator">Today (% change)</span>
+                    <section class="glass-panel">
+                        <div class="panel-header">
+                            <h2><i data-lucide="swords"></i> The Battlefield (Active)</h2>
+                        </div>
+                        <div class="table-container">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Ticker</th>
+                                        <th>Type</th>
+                                        <th>Qty</th>
+                                        <th>Entry Price</th>
+                                        <th>Current</th>
+                                        <th>Unrealized P/L</th>
+                                        <th>Stop Loss</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="positions-body">
+                                    <!-- Populated via JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
                 </div>
-                <div class="chart-container" style="position: relative; height: 200px; width: 100%;">
-                    <canvas id="performance-chart"></canvas>
-                </div>
-            </section>
 
-            <!-- KOSH (Treasury) -->
-            <section class="glass-panel kosh-panel">
-                <div class="panel-header">
-                    <h2>💰 The Kosh (Treasury)</h2>
-                </div>
-                <div class="kosh-grid">
-                    <div class="kosh-item">
-                        <span class="label">Portfolio Value</span>
-                        <span class="value highlight-gold" id="kosh-value">Demo $0.00</span>
-                    </div>
-                    <div class="kosh-item">
-                        <span class="label">Cash Left</span>
-                        <span class="value" id="kosh-cash">Demo $0.00</span>
-                    </div>
-                    <div class="kosh-item">
-                        <span class="label">Buying Power</span>
-                        <span class="value" id="kosh-bp">Demo $0.00</span>
-                    </div>
-                </div>
-            </section>
+                <!-- Right Column -->
+                <div class="grid-right">
+                    <section class="glass-panel h-half">
+                        <div class="panel-header">
+                            <h2><i data-lucide="target"></i> VWAP Pullback Queue</h2>
+                        </div>
+                        <div class="table-container">
+                            <table class="data-table small-text">
+                                <thead>
+                                    <tr>
+                                        <th>Ticker</th>
+                                        <th>Wait Price</th>
+                                        <th>Score</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="waitlist-body">
+                                    <!-- Populated via JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
 
-            <!-- The Battlefield (Active & Waitlist Positions Only) -->
-            <section class="glass-panel battlefield-panel">
-                <div class="panel-header">
-                    <h2>⚔️ The Battlefield</h2>
-                    <div class="tab-switcher">
-                        <button class="tab-btn active" onclick="switchTab('active')">Active</button>
-                        <button class="tab-btn" onclick="switchTab('waitlist')">Waitlist</button>
-                    </div>
+                    <section class="glass-panel h-half">
+                        <div class="panel-header">
+                            <h2><i data-lucide="cpu"></i> ML Gatekeeper Log</h2>
+                        </div>
+                        <div class="terminal-container" id="news-feed">
+                            <!-- Populated via JS -->
+                        </div>
+                    </section>
                 </div>
-                
-                <div id="active-positions" class="tab-content active-tab">
-                    <div class="table-responsive" style="overflow-x: auto;">
-                        <table class="battlefield-table">
-                            <thead>
-                                <tr>
-                                    <th>Ticker</th>
-                                    <th class="txt-right">Price</th>
-                                    <th class="txt-right">Position</th>
-                                    <th class="txt-right">P/L</th>
-                                    <th class="txt-right">Stop</th>
-                                </tr>
-                            </thead>
-                            <tbody id="positions-list">
-                                <tr><td colspan="5" class="empty-state">Loading positions...</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-                
-                <div id="waitlist-positions" class="tab-content">
-                    <div class="table-responsive" style="overflow-x: auto;">
-                        <table class="battlefield-table">
-                            <thead>
-                                <tr>
-                                    <th>Ticker</th>
-                                    <th class="txt-right">Trigger</th>
-                                    <th class="txt-right">Score</th>
-                                    <th class="txt-right">Status / Timer</th>
-                                </tr>
-                            </thead>
-                            <tbody id="waitlist-list">
-                                <tr><td colspan="4" class="empty-state">Loading waitlist...</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </section>
-
-            <!-- stand-alone Agent GURU Self-Learning Panel -->
-            <section class="glass-panel learning-panel">
-                <div class="panel-header">
-                    <h2>🧠 Agent GURU Self-Learning Hub</h2>
-                </div>
-                <!-- Agent GURU Daily Lessons Banner -->
-                <div class="lessons-banner" id="lessons-banner" style="display: none;">
-                    <div class="lessons-banner-header" onclick="toggleLessonsBanner()">
-                        <span>🧠 Agent GURU Daily Lessons (<span id="lessons-date"></span>)</span>
-                        <span class="lessons-toggle-btn">
-                            <span id="lessons-toggle-text">Collapse</span>
-                            <svg class="chevron-icon" id="lessons-toggle-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transition: transform 0.2s; transform: rotate(180deg); margin-left: 4px; display: inline-block; vertical-align: middle;"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                        </span>
-                    </div>
-                    <div class="lessons-banner-content" id="lessons-content"></div>
-                </div>
-                
-                <div class="learning-controls-bar">
-                    <input type="text" id="learning-search" placeholder="🔍 Search Ticker..." oninput="handleFeedbackSearch(this.value)">
-                    <select id="learning-sort" onchange="handleFeedbackSort(this.value)">
-                        <option value="recent">Most Recent</option>
-                        <option value="pnl-desc">Highest P/L %</option>
-                        <option value="pnl-asc">Lowest P/L %</option>
-                    </select>
-                </div>
-                <div class="learning-filter-row">
-                    <button class="filter-pill active" id="pill-all" onclick="handleFeedbackFilter('all')">All</button>
-                    <button class="filter-pill" id="pill-wins" onclick="handleFeedbackFilter('wins')">Wins</button>
-                    <button class="filter-pill" id="pill-losses" onclick="handleFeedbackFilter('losses')">Losses</button>
-                </div>
-                <div class="list-container" id="learning-list" style="max-height: 400px; overflow-y: auto;">
-                    <div class="empty-state">Loading trade feedback...</div>
-                </div>
-            </section>
-        </div>
-
-        <!-- Intelligence (News) -->
-        <section class="glass-panel intelligence-panel">
-            <div class="panel-header">
-                <h2>📰 Intelligence Log</h2>
-                <span class="pulse-indicator">Live</span>
             </div>
-            <div class="news-list" id="news-list" style="max-height: 500px; overflow-y: auto;">
-                <div class="empty-state">Waiting for news stream...</div>
-            </div>
-        </section>
-
+        </main>
     </div>
-    <script src="/static/app.js?v=109"></script>
+
+    <script>
+        lucide.createIcons();
+
+        // Initialize Chart
+        const ctx = document.getElementById('performance-chart').getContext('2d');
+        const performanceChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Portfolio Alpha',
+                    data: [],
+                    borderColor: '#00ffcc',
+                    backgroundColor: 'rgba(0, 255, 204, 0.1)',
+                    borderWidth: 2,
+                    tension: 0.4,
+                    fill: true,
+                    pointRadius: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { display: false },
+                    y: { grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#8b9bb4' } }
+                }
+            }
+        });
+
+        function formatCurrency(val) {
+            return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val);
+        }
+
+        async function fetchData() {
+            try {
+                const [statsRes, koshRes, posRes, newsRes] = await Promise.all([
+                    fetch('/api/stats'),
+                    fetch('/api/kosh'),
+                    fetch('/api/positions'),
+                    fetch('/api/news')
+                ]);
+
+                const stats = await statsRes.json();
+                const kosh = await koshRes.json();
+                const pos = await posRes.json();
+                const news = await newsRes.json();
+
+                // Update Top Stats
+                if(stats.status === 'success') {
+                    document.getElementById('total-trades').innerText = stats.trades;
+                    document.getElementById('win-rate').innerText = stats.win_rate.toFixed(1) + '%';
+                    const pnlEl = document.getElementById('total-pnl');
+                    pnlEl.innerText = formatCurrency(stats.pnl);
+                    pnlEl.className = stats.pnl >= 0 ? 'value highlight-green' : 'value highlight-red';
+
+                    const statusEl = document.getElementById('market-text');
+                    const dotEl = document.querySelector('.pulse-dot');
+                    if (stats.market_status === 'OPEN') {
+                        statusEl.innerText = 'MARKET OPEN';
+                        statusEl.style.color = '#00ffcc';
+                        dotEl.style.background = '#00ffcc';
+                    } else {
+                        statusEl.innerText = 'MARKET CLOSED';
+                        statusEl.style.color = '#ff4444';
+                        dotEl.style.background = '#ff4444';
+                    }
+                }
+
+                if(kosh.status === 'success') {
+                    document.getElementById('kosh-value').innerText = formatCurrency(kosh.portfolio_value);
+                    document.getElementById('kosh-invested').innerText = formatCurrency(kosh.total_invested);
+                    document.getElementById('kosh-bp').innerText = formatCurrency(kosh.buying_power);
+                }
+
+                // Update Active Positions
+                if(pos.status === 'success') {
+                    const activeBody = document.getElementById('positions-body');
+                    activeBody.innerHTML = '';
+                    pos.active.forEach(p => {
+                        const isProfit = p.unrealized_pl >= 0;
+                        const colorClass = isProfit ? 'text-green' : 'text-red';
+                        const dirClass = p.direction === 'LONG' ? 'badge-long' : 'badge-short';
+                        
+                        activeBody.innerHTML += `
+                            <tr>
+                                <td class="fw-bold">${p.ticker}</td>
+                                <td><span class="badge ${dirClass}">${p.direction}</span></td>
+                                <td>${p.qty.toFixed(4)}</td>
+                                <td>${formatCurrency(p.avg_entry_price)}</td>
+                                <td>${formatCurrency(p.current_price)}</td>
+                                <td class="${colorClass}">${formatCurrency(p.unrealized_pl)} (${p.unrealized_plpc.toFixed(2)}%)</td>
+                                <td>${p.stop_price ? formatCurrency(p.stop_price) : '-'}</td>
+                            </tr>
+                        `;
+                    });
+
+                    // Update Waitlist
+                    const waitlistBody = document.getElementById('waitlist-body');
+                    waitlistBody.innerHTML = '';
+                    if (pos.waitlist && pos.waitlist.length > 0) {
+                        pos.waitlist.forEach(w => {
+                            waitlistBody.innerHTML += `
+                                <tr>
+                                    <td class="fw-bold text-blue">${w.ticker}</td>
+                                    <td>${formatCurrency(w.initial_price)}</td>
+                                    <td>${w.significance_score}/10</td>
+                                </tr>
+                            `;
+                        });
+                    } else {
+                        waitlistBody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:#5c6b89;">Queue Empty</td></tr>`;
+                    }
+                }
+
+                // Update ML Terminal
+                if(news.status === 'success' && news.data) {
+                    const newsFeed = document.getElementById('news-feed');
+                    newsFeed.innerHTML = '';
+                    news.data.forEach(n => {
+                        const time = n.timestamp.split('T')[1].substring(0,8);
+                        const sentimentClass = n.sentiment === 'BULLISH' ? 'term-bull' : (n.sentiment === 'BEARISH' ? 'term-bear' : 'term-neutral');
+                        newsFeed.innerHTML += `
+                            <div class="terminal-entry">
+                                <span class="term-time">[${time}]</span>
+                                <span class="term-ticker">${n.ticker}</span>
+                                <span class="${sentimentClass}">${n.sentiment}</span>
+                                <p class="term-text">> ${n.headline}</p>
+                            </div>
+                        `;
+                    });
+                }
+
+                // Fake Chart Update for effect
+                if (performanceChart.data.labels.length > 20) {
+                    performanceChart.data.labels.shift();
+                    performanceChart.data.datasets[0].data.shift();
+                }
+                performanceChart.data.labels.push('');
+                const lastVal = performanceChart.data.datasets[0].data.slice(-1)[0] || 10000;
+                performanceChart.data.datasets[0].data.push(lastVal + (Math.random() - 0.45) * 50);
+                performanceChart.update();
+
+            } catch(e) {
+                console.error("Dashboard Sync Error:", e);
+            }
+        }
+
+        setInterval(fetchData, 3000);
+        fetchData();
+    </script>
 </body>
 </html>

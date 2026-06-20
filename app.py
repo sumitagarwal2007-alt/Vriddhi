@@ -44,19 +44,36 @@ def api_stats():
             trades = len(df_tf)
             win_rate = float((df_tf['pnl_pct'] > 0).sum() / trades * 100)
                 
-        if trading_client:
-            try:
-                acc = trading_client.get_account()
-                port_val = float(acc.portfolio_value)
+        try:
+            conn_tx = get_db_connection()
+            df_tx = pd.read_sql_query("SELECT * FROM transactions ORDER BY timestamp ASC", conn_tx)
+            conn_tx.close()
+            
+            open_positions_calc = {}
+            for _, row in df_tx.iterrows():
+                ticker = row['ticker']
+                action = row['action']
+                qty = float(row['share_qty'])
+                price = float(row['execution_price'])
                 
-                # Get unrealized P/L to find pure realized P/L
-                positions = trading_client.get_all_positions()
-                unrealized = sum(float(p.unrealized_pl) for p in positions)
-                
-                # Alpaca paper starts at 100,000.00
-                pnl = (port_val - 100000.0) - unrealized
-            except Exception as e:
-                pass
+                if ticker not in open_positions_calc:
+                    open_positions_calc[ticker] = {'qty': 0.0, 'total_cost': 0.0}
+                    
+                pos = open_positions_calc[ticker]
+                if action == 'BUY':
+                    pos['qty'] += qty
+                    pos['total_cost'] += qty * price
+                elif action == 'SELL':
+                    if pos['qty'] > 0:
+                        avg_cost = pos['total_cost'] / pos['qty']
+                        pnl += (price - avg_cost) * qty
+                        pos['qty'] -= qty
+                        pos['total_cost'] -= avg_cost * qty
+                        if pos['qty'] <= 0.0001:
+                            pos['qty'] = 0.0
+                            pos['total_cost'] = 0.0
+        except Exception as e:
+            pass
         
         market_status = "UNKNOWN"
         next_open = ""
@@ -75,7 +92,7 @@ def api_stats():
 
         return jsonify({
             "status": "success",
-            "trades": trades,
+            "trades": len(df_tx) if 'df_tx' in locals() else 0,
             "win_rate": win_rate,
             "pnl": pnl,
             "market_status": market_status,
@@ -91,11 +108,14 @@ def api_kosh():
         return jsonify({"status": "error", "message": "Alpaca API not configured."}), 500
     try:
         acc = trading_client.get_account()
+        positions = trading_client.get_all_positions()
+        total_invested = sum(float(p.cost_basis) for p in positions)
         return jsonify({
             "status": "success",
             "cash": float(acc.cash),
             "portfolio_value": float(acc.portfolio_value),
-            "buying_power": float(acc.buying_power)
+            "buying_power": float(acc.buying_power),
+            "total_invested": total_invested
         })
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -161,6 +181,7 @@ def api_positions():
                         "ticker": ticker,
                         "qty": float(p.qty),
                         "cost_basis": float(p.cost_basis),
+                        "avg_entry_price": float(p.avg_entry_price),
                         "unrealized_pl": float(p.unrealized_pl),
                         "unrealized_plpc": float(p.unrealized_plpc) * 100,
                         "stop_price": stop_price,
@@ -346,30 +367,49 @@ def api_chart_data():
         closed_trades = []
         total_realized = 0.0
         if not df.empty:
-            df['date'] = pd.to_datetime(df['timestamp']).dt.date
-            buys = df[df['action'] == 'BUY']
-            sells = df[df['action'] == 'SELL']
-            if not buys.empty and not sells.empty:
-                merged = pd.merge(buys, sells, on='ticker', suffixes=('_buy', '_sell'))
-                if not merged.empty:
-                    merged['realized_pl'] = (merged['execution_price_sell'] - merged['execution_price_buy']) * merged['share_qty_buy']
-                    merged['sell_date'] = pd.to_datetime(merged['timestamp_sell']).dt.date
-                    merged_day = merged[merged['sell_date'] == target_date]
+            df['date'] = pd.to_datetime(df['timestamp'], format='mixed', errors='coerce', utc=True).dt.tz_convert(eastern).dt.date
+            df = df.sort_values(by='timestamp')
+            
+            open_positions_calc = {}
+            for _, row in df.iterrows():
+                ticker = row['ticker']
+                action = row['action']
+                qty = float(row['share_qty'])
+                price = float(row['execution_price'])
+                row_date = row['date']
+                sell_time_str = row['timestamp']
+                
+                if ticker not in open_positions_calc:
+                    open_positions_calc[ticker] = {'qty': 0.0, 'total_cost': 0.0}
                     
-                    for _, row in merged_day.iterrows():
-                        sell_time_str = row['timestamp_sell']
-                        try:
-                            dt_parsed = pd.to_datetime(sell_time_str).tz_localize(None).tz_localize(eastern)
-                            ts = int(dt_parsed.timestamp())
-                        except:
-                            ts = start_ts
+                pos = open_positions_calc[ticker]
+                if action == 'BUY':
+                    pos['qty'] += qty
+                    pos['total_cost'] += qty * price
+                elif action == 'SELL':
+                    if pos['qty'] > 0:
+                        avg_cost = pos['total_cost'] / pos['qty']
+                        realized = (price - avg_cost) * qty
+                        
+                        pos['qty'] -= qty
+                        pos['total_cost'] -= avg_cost * qty
+                        if pos['qty'] <= 0.0001:
+                            pos['qty'] = 0.0
+                            pos['total_cost'] = 0.0
                             
-                        closed_trades.append({
-                            'ticker': row['ticker'],
-                            'time': ts,
-                            'pnl_val': float(row['realized_pl'])
-                        })
-                        total_realized += float(row['realized_pl'])
+                        if row_date == target_date:
+                            try:
+                                dt_parsed = pd.to_datetime(sell_time_str, format='mixed', errors='coerce', utc=True).tz_convert(eastern)
+                                ts = int(dt_parsed.timestamp())
+                            except:
+                                ts = start_ts
+                                
+                            closed_trades.append({
+                                'ticker': ticker,
+                                'time': ts,
+                                'pnl_val': float(realized)
+                            })
+                            total_realized += float(realized)
                         
         # 4. Generate curves
         start_val = portfolio_equity - total_realized
@@ -400,7 +440,7 @@ def api_chart_data():
             df_day = df[df['date'] == target_date]
             for _, row in df_day.iterrows():
                 try:
-                    dt_parsed = pd.to_datetime(row['timestamp']).tz_localize(None).tz_localize(eastern)
+                    dt_parsed = pd.to_datetime(row['timestamp'], format='mixed', errors='coerce', utc=True).tz_convert(eastern)
                     ts = int(dt_parsed.timestamp())
                     closest_idx = 0
                     min_diff = float('inf')
