@@ -9,8 +9,7 @@ env/
 *.db
 
 cloudflared
-cloudflare.log
-web.log
+*.log
 cloudflared.tgz
 logs/
 .envo
