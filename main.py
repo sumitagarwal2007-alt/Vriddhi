@@ -156,13 +156,7 @@ async def handle_news(news):
                         print(f"[Prahari] Max active positions ({active_count}/5) reached. Skipping {ticker}.")
                         continue
                         
-                    # check today's trades
-                    today_str = datetime.now().strftime("%Y-%m-%d")
-                    async with db_conn.execute("SELECT COUNT(*) FROM transactions WHERE action='BUY' AND timestamp LIKE ?", (f"{today_str}%",)) as cur:
-                        today_trades = (await cur.fetchone())[0]
-                    if today_trades >= 2:
-                        print(f"[Prahari] Daily trade limit ({today_trades}/2) reached today. Skipping {ticker}.")
-                        continue
+                    # (Removed artificial daily trade limit based on user feedback. The system is now only constrained by the 5 active position max and the $10,000 capital limit.)
             except Exception as e:
                 print(f"[Prahari DB Limit Check Error] {e}")
 
