@@ -177,17 +177,19 @@
 
         async function fetchData() {
             try {
-                const [statsRes, koshRes, posRes, newsRes] = await Promise.all([
+                const [statsRes, koshRes, posRes, newsRes, chartRes] = await Promise.all([
                     fetch('/api/stats'),
                     fetch('/api/kosh'),
                     fetch('/api/positions'),
-                    fetch('/api/news')
+                    fetch('/api/news'),
+                    fetch('/api/chart-data')
                 ]);
 
                 const stats = await statsRes.json();
                 const kosh = await koshRes.json();
                 const pos = await posRes.json();
                 const news = await newsRes.json();
+                const chartData = await chartRes.json();
 
                 // Update Top Stats
                 if(stats.status === 'success') {
@@ -274,15 +276,12 @@
                     });
                 }
 
-                // Fake Chart Update for effect
-                if (performanceChart.data.labels.length > 20) {
-                    performanceChart.data.labels.shift();
-                    performanceChart.data.datasets[0].data.shift();
+                // Real Chart Update
+                if(chartData.status === 'success') {
+                    performanceChart.data.labels = chartData.labels;
+                    performanceChart.data.datasets[0].data = chartData.portfolio;
+                    performanceChart.update();
                 }
-                performanceChart.data.labels.push('');
-                const lastVal = performanceChart.data.datasets[0].data.slice(-1)[0] || 10000;
-                performanceChart.data.datasets[0].data.push(lastVal + (Math.random() - 0.45) * 50);
-                performanceChart.update();
 
             } catch(e) {
                 console.error("Dashboard Sync Error:", e);

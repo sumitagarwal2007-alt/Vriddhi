@@ -394,8 +394,16 @@ async def run_waitlist_loop():
                         )
                         notif.send_alert(
                             f"🚨 Trade Executed ({direction})",
-                            f"Technicals confirmed for **{ticker}**.\\n{direction} {qty:.4f} shares at ${current_price:.2f}.",
-                            0x00FF00 if direction == "LONG" else 0xFF0000
+                            f"Technicals confirmed for **{ticker}**! Institutional VWAP pullback criteria met.",
+                            0x00FF00 if direction == "LONG" else 0xFF0000,
+                            fields={
+                                "Ticker": ticker,
+                                "Action": direction,
+                                "Shares": f"{qty:.4f}",
+                                "Execution Price": f"${current_price:.2f}",
+                                "Dynamic Stop Loss": f"{stop_percent*100:.1f}%",
+                                "ML Win Probability": f"{sig_score*10:.1f}%"
+                            }
                         )
                     
                     await db.remove_from_waitlist(ticker)
@@ -828,7 +836,8 @@ async def run_chanakya_loop():
                             notif.send_alert(
                                 f"💰 Profit Taken ({tp_pct_str})",
                                 f"Agent Chanakya scaled out 50% of **{ticker}** at ${current_price:.2f}.",
-                                0x00FF00
+                                0x00FF00,
+                                fields={"Ticker": ticker, "Action": "SELL (50%)", "Shares": f"{sell_qty:.4f}", "Price": f"${current_price:.2f}"}
                             )
                         continue
                     
