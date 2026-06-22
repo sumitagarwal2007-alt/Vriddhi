@@ -54,8 +54,12 @@
                         <span class="value" id="kosh-value">$0.00</span>
                     </div>
                     <div class="metric">
-                        <span class="label">REALIZED P/L</span>
-                        <span class="value" id="total-pnl">$0.00</span>
+                        <span class="label">VWAP P/L</span>
+                        <span class="value" id="pnl-vwap">$0.00</span>
+                    </div>
+                    <div class="metric">
+                        <span class="label">OPTIONS P/L</span>
+                        <span class="value" id="pnl-options">$0.00</span>
                     </div>
                     <div class="metric">
                         <span class="label">CAPITAL DEPLOYED</span>
@@ -89,6 +93,7 @@
                                 <thead>
                                     <tr>
                                         <th>Ticker</th>
+                                        <th>Strategy</th>
                                         <th>Type</th>
                                         <th>Qty</th>
                                         <th>Entry Price</th>
@@ -195,9 +200,13 @@
                 if(stats.status === 'success') {
                     document.getElementById('total-trades').innerText = stats.trades;
                     document.getElementById('win-rate').innerText = stats.win_rate.toFixed(1) + '%';
-                    const pnlEl = document.getElementById('total-pnl');
-                    pnlEl.innerText = formatCurrency(stats.pnl);
-                    pnlEl.className = stats.pnl >= 0 ? 'value highlight-green' : 'value highlight-red';
+                    const vwapEl = document.getElementById('pnl-vwap');
+                    vwapEl.innerText = formatCurrency(stats.pnl_vwap || 0);
+                    vwapEl.className = (stats.pnl_vwap || 0) >= 0 ? 'value highlight-green' : 'value highlight-red';
+
+                    const optEl = document.getElementById('pnl-options');
+                    optEl.innerText = formatCurrency(stats.pnl_options || 0);
+                    optEl.className = (stats.pnl_options || 0) >= 0 ? 'value highlight-green' : 'value highlight-red';
 
                     const statusEl = document.getElementById('market-text');
                     const dotEl = document.querySelector('.pulse-dot');
@@ -230,6 +239,7 @@
                         activeBody.innerHTML += `
                             <tr>
                                 <td class="fw-bold">${p.ticker}</td>
+                                <td><span class="badge" style="background:#2a3143; border: 1px solid #4a5568">${p.strategy_tag || 'VWAP_EQUITY'}</span></td>
                                 <td><span class="badge ${dirClass}">${p.direction}</span></td>
                                 <td>${p.qty.toFixed(4)}</td>
                                 <td>${formatCurrency(p.avg_entry_price)}</td>
