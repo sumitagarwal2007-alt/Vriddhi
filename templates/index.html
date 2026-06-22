@@ -47,27 +47,48 @@
         <!-- Main Content -->
         <main class="main-content">
             <!-- Top Row: Kosh (Treasury) -->
-            <div class="top-bar glass-panel">
+            <!-- VWAP Account Row -->
+            <div class="top-bar glass-panel" style="margin-bottom: 10px;">
+                <div style="font-size: 0.8rem; color: #8b9bb4; font-weight: bold; margin-bottom: 5px;"><i data-lucide="swords" style="width:12px;height:12px;margin-right:4px;"></i> VWAP EQUITIES ACCOUNT</div>
                 <div class="kosh-metrics">
                     <div class="metric">
                         <span class="label">NET LIQUIDITY</span>
-                        <span class="value" id="kosh-value">$0.00</span>
+                        <span class="value" id="kosh-vwap-value">$0.00</span>
                     </div>
                     <div class="metric">
-                        <span class="label">VWAP P/L</span>
+                        <span class="label">REALIZED P/L</span>
                         <span class="value" id="pnl-vwap">$0.00</span>
                     </div>
                     <div class="metric">
-                        <span class="label">OPTIONS P/L</span>
+                        <span class="label">CAPITAL DEPLOYED</span>
+                        <span class="value" id="kosh-vwap-invested">$0.00</span>
+                    </div>
+                    <div class="metric">
+                        <span class="label">BUYING POWER</span>
+                        <span class="value" id="kosh-vwap-bp">$0.00</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Options Account Row -->
+            <div class="top-bar glass-panel">
+                <div style="font-size: 0.8rem; color: #8b9bb4; font-weight: bold; margin-bottom: 5px;"><i data-lucide="rocket" style="width:12px;height:12px;margin-right:4px;"></i> SWING OPTIONS ACCOUNT</div>
+                <div class="kosh-metrics">
+                    <div class="metric">
+                        <span class="label">NET LIQUIDITY</span>
+                        <span class="value" id="kosh-opt-value">$0.00</span>
+                    </div>
+                    <div class="metric">
+                        <span class="label">REALIZED P/L</span>
                         <span class="value" id="pnl-options">$0.00</span>
                     </div>
                     <div class="metric">
                         <span class="label">CAPITAL DEPLOYED</span>
-                        <span class="value" id="kosh-invested">$0.00</span>
+                        <span class="value" id="kosh-opt-invested">$0.00</span>
                     </div>
                     <div class="metric">
                         <span class="label">BUYING POWER</span>
-                        <span class="value" id="kosh-bp">$0.00</span>
+                        <span class="value" id="kosh-opt-bp">$0.00</span>
                     </div>
                 </div>
             </div>
@@ -86,14 +107,13 @@
 
                     <section class="glass-panel">
                         <div class="panel-header">
-                            <h2><i data-lucide="swords"></i> The Battlefield (Active)</h2>
+                            <h2><i data-lucide="swords"></i> Intraday Equities (VWAP)</h2>
                         </div>
                         <div class="table-container">
                             <table class="data-table">
                                 <thead>
                                     <tr>
                                         <th>Ticker</th>
-                                        <th>Strategy</th>
                                         <th>Type</th>
                                         <th>Qty</th>
                                         <th>Entry Price</th>
@@ -102,7 +122,31 @@
                                         <th>Stop Loss</th>
                                     </tr>
                                 </thead>
-                                <tbody id="positions-body">
+                                <tbody id="positions-vwap">
+                                    <!-- Populated via JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+
+                    <section class="glass-panel" style="margin-top: 1.5rem;">
+                        <div class="panel-header">
+                            <h2><i data-lucide="rocket"></i> Swing LEAPS (Options)</h2>
+                        </div>
+                        <div class="table-container">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Contract</th>
+                                        <th>Type</th>
+                                        <th>Qty</th>
+                                        <th>Entry Price</th>
+                                        <th>Current</th>
+                                        <th>Unrealized P/L</th>
+                                        <th>Stop Loss</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="positions-options">
                                     <!-- Populated via JS -->
                                 </tbody>
                             </table>
@@ -222,24 +266,32 @@
                 }
 
                 if(kosh.status === 'success') {
-                    document.getElementById('kosh-value').innerText = formatCurrency(kosh.portfolio_value);
-                    document.getElementById('kosh-invested').innerText = formatCurrency(kosh.total_invested);
-                    document.getElementById('kosh-bp').innerText = formatCurrency(kosh.buying_power);
+                    // VWAP Account
+                    document.getElementById('kosh-vwap-value').innerText = formatCurrency(kosh.vwap.portfolio_value);
+                    document.getElementById('kosh-vwap-invested').innerText = formatCurrency(kosh.vwap.total_invested);
+                    document.getElementById('kosh-vwap-bp').innerText = formatCurrency(kosh.vwap.buying_power);
+
+                    // Options Account
+                    document.getElementById('kosh-opt-value').innerText = formatCurrency(kosh.options.portfolio_value);
+                    document.getElementById('kosh-opt-invested').innerText = formatCurrency(kosh.options.total_invested);
+                    document.getElementById('kosh-opt-bp').innerText = formatCurrency(kosh.options.buying_power);
                 }
 
                 // Update Active Positions
                 if(pos.status === 'success') {
-                    const activeBody = document.getElementById('positions-body');
-                    activeBody.innerHTML = '';
+                    const vwapBody = document.getElementById('positions-vwap');
+                    const optionsBody = document.getElementById('positions-options');
+                    vwapBody.innerHTML = '';
+                    optionsBody.innerHTML = '';
+                    
                     pos.active.forEach(p => {
                         const isProfit = p.unrealized_pl >= 0;
                         const colorClass = isProfit ? 'text-green' : 'text-red';
                         const dirClass = p.direction === 'LONG' ? 'badge-long' : 'badge-short';
                         
-                        activeBody.innerHTML += `
+                        const rowHtml = `
                             <tr>
                                 <td class="fw-bold">${p.ticker}</td>
-                                <td><span class="badge" style="background:#2a3143; border: 1px solid #4a5568">${p.strategy_tag || 'VWAP_EQUITY'}</span></td>
                                 <td><span class="badge ${dirClass}">${p.direction}</span></td>
                                 <td>${p.qty.toFixed(4)}</td>
                                 <td>${formatCurrency(p.avg_entry_price)}</td>
@@ -248,7 +300,20 @@
                                 <td>${p.stop_price ? formatCurrency(p.stop_price) : '-'}</td>
                             </tr>
                         `;
+                        
+                        if (p.strategy_tag === 'OPTIONS_SWING') {
+                            optionsBody.innerHTML += rowHtml;
+                        } else {
+                            vwapBody.innerHTML += rowHtml;
+                        }
                     });
+
+                    if (optionsBody.innerHTML === '') {
+                        optionsBody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:#5c6b89;">No Active LEAPS</td></tr>`;
+                    }
+                    if (vwapBody.innerHTML === '') {
+                        vwapBody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:#5c6b89;">No Active Equities</td></tr>`;
+                    }
 
                     // Update Waitlist
                     const waitlistBody = document.getElementById('waitlist-body');

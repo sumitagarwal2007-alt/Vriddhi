@@ -7,15 +7,26 @@ from dotenv import load_dotenv
 from alpaca.trading.client import TradingClient
 
 load_dotenv()
-API_KEY = os.getenv("ALPACA_API_KEY")
-SECRET_KEY = os.getenv("ALPACA_SECRET_KEY")
 
+# Initialize Primary Alpaca Client (VWAP Equities)
+api_key = os.getenv("ALPACA_API_KEY")
+secret_key = os.getenv("ALPACA_SECRET_KEY")
 trading_client = None
-if API_KEY and SECRET_KEY and API_KEY != "YOUR_ALPACA_KEY":
+if api_key and secret_key and api_key != "YOUR_ALPACA_KEY":
     try:
-        trading_client = TradingClient(API_KEY, SECRET_KEY, paper=True)
-    except:
-        pass
+        trading_client = TradingClient(api_key, secret_key, paper=True)
+    except Exception as e:
+        print(f"Failed to initialize Alpaca primary client: {e}")
+
+# Initialize Secondary Alpaca Client (Options LEAPS)
+options_api_key = os.getenv("ALPACA_OPTIONS_API_KEY")
+options_secret_key = os.getenv("ALPACA_OPTIONS_SECRET_KEY")
+options_client = None
+if options_api_key and options_secret_key:
+    try:
+        options_client = TradingClient(options_api_key, options_secret_key, paper=True)
+    except Exception as e:
+        print(f"Failed to initialize Alpaca options client: {e}")
 
 DB_NAME = "trading_agent.db"
 
@@ -116,19 +127,34 @@ def api_stats():
 
 @app.route('/api/kosh')
 def api_kosh():
-    if not trading_client:
-        return jsonify({"status": "error", "message": "Alpaca API not configured."}), 500
     try:
-        acc = trading_client.get_account()
-        positions = trading_client.get_all_positions()
-        total_invested = sum(float(p.cost_basis) for p in positions)
-        return jsonify({
+        data = {
             "status": "success",
-            "cash": float(acc.cash),
-            "portfolio_value": float(acc.portfolio_value),
-            "buying_power": float(acc.buying_power),
-            "total_invested": total_invested
-        })
+            "vwap": {"cash": 0, "portfolio_value": 0, "buying_power": 0, "total_invested": 0},
+            "options": {"cash": 0, "portfolio_value": 0, "buying_power": 0, "total_invested": 0}
+        }
+        
+        if trading_client:
+            try:
+                acc = trading_client.get_account()
+                positions = trading_client.get_all_positions()
+                data["vwap"]["cash"] = float(acc.cash)
+                data["vwap"]["portfolio_value"] = float(acc.portfolio_value)
+                data["vwap"]["buying_power"] = float(acc.buying_power)
+                data["vwap"]["total_invested"] = sum(float(p.cost_basis) for p in positions)
+            except: pass
+            
+        if options_client:
+            try:
+                acc2 = options_client.get_account()
+                positions2 = options_client.get_all_positions()
+                data["options"]["cash"] = float(acc2.cash)
+                data["options"]["portfolio_value"] = float(acc2.portfolio_value)
+                data["options"]["buying_power"] = float(acc2.buying_power)
+                data["options"]["total_invested"] = sum(float(p.cost_basis) for p in positions2)
+            except: pass
+            
+        return jsonify(data)
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
@@ -173,23 +199,27 @@ def api_positions():
         conn.close()
         
         positions_list = []
-        if trading_client:
+        
+        # Helper to process positions
+        def process_alpaca_positions(client, force_strategy_tag=None):
+            if not client: return
             try:
-                positions = trading_client.get_all_positions()
+                positions = client.get_all_positions()
                 for p in positions:
                     ticker = p.symbol
                     stop_price = None
+                    
                     if ticker in db_positions:
                         row = db_positions[ticker]
                         direction = row.get('direction', 'LONG')
-                        strategy_tag = row.get('strategy_tag', 'VWAP_EQUITY')
+                        strategy_tag = row.get('strategy_tag', force_strategy_tag or 'VWAP_EQUITY')
                         if direction == 'LONG':
                             stop_price = float(row['highest_tracked_price']) * (1 - float(row['dynamic_stop_percent']))
                         else:
                             stop_price = float(row['highest_tracked_price']) * (1 + float(row['dynamic_stop_percent']))
                     else:
                         direction = 'LONG'
-                        strategy_tag = 'VWAP_EQUITY'
+                        strategy_tag = force_strategy_tag or 'VWAP_EQUITY'
                     
                     positions_list.append({
                         "ticker": ticker,
@@ -205,6 +235,9 @@ def api_positions():
                     })
             except Exception as e:
                 print(f"Error fetching positions from Alpaca: {e}")
+
+        process_alpaca_positions(trading_client, 'VWAP_EQUITY')
+        process_alpaca_positions(options_client, 'OPTIONS_SWING')
         
         return jsonify({
             "status": "success", 
