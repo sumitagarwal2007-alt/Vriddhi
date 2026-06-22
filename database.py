@@ -104,6 +104,16 @@ async def init_db():
         except sqlite3.OperationalError:
             pass
             
+        # Dual-Strategy Arena Upgrade: Add strategy_tag
+        try:
+            await db.execute('ALTER TABLE transactions ADD COLUMN strategy_tag TEXT DEFAULT "VWAP_EQUITY"')
+        except sqlite3.OperationalError:
+            pass
+        try:
+            await db.execute('ALTER TABLE active_positions ADD COLUMN strategy_tag TEXT DEFAULT "VWAP_EQUITY"')
+        except sqlite3.OperationalError:
+            pass
+            
         # V2 Short Selling Upgrade: Add direction
         try:
             await db.execute("ALTER TABLE active_positions ADD COLUMN direction TEXT DEFAULT 'LONG'")
@@ -174,20 +184,20 @@ async def log_signal(timestamp: str, raw_headline: str, extracted_ticker: str, a
         ''', (timestamp, raw_headline, extracted_ticker, ai_sentiment, ai_reasoning, is_eligible, significance_score, tenali_approved, tenali_critique, tenali_score, bear_thesis, judge_verdict))
         await db.commit()
 
-async def log_transaction(timestamp: str, alpaca_order_id: str, ticker: str, action: str, share_qty: float, execution_price: float, order_type: str, status: str):
+async def log_transaction(timestamp: str, alpaca_order_id: str, ticker: str, action: str, share_qty: float, execution_price: float, order_type: str, status: str, strategy_tag: str = "VWAP_EQUITY"):
     async with aiosqlite.connect(DB_NAME) as db:
         await db.execute('''
-            INSERT INTO transactions (timestamp, alpaca_order_id, ticker, action, share_qty, execution_price, order_type, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (timestamp, alpaca_order_id, ticker, action, share_qty, execution_price, order_type, status))
+            INSERT INTO transactions (timestamp, alpaca_order_id, ticker, action, share_qty, execution_price, order_type, status, strategy_tag)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (timestamp, alpaca_order_id, ticker, action, share_qty, execution_price, order_type, status, strategy_tag))
         await db.commit()
 
-async def add_active_position(ticker: str, purchase_price: float, share_qty: float, highest_tracked_price: float, dynamic_stop_percent: float, entry_time: str, profit_taken: int = 0, significance_score: int = 7, direction: str = 'LONG'):
+async def add_active_position(ticker: str, purchase_price: float, share_qty: float, highest_tracked_price: float, dynamic_stop_percent: float, entry_time: str, profit_taken: int = 0, significance_score: int = 7, direction: str = 'LONG', strategy_tag: str = "VWAP_EQUITY"):
     async with aiosqlite.connect(DB_NAME) as db:
         await db.execute('''
-            INSERT OR REPLACE INTO active_positions (ticker, purchase_price, share_qty, highest_tracked_price, dynamic_stop_percent, entry_time, profit_taken, significance_score, direction)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (ticker, purchase_price, share_qty, highest_tracked_price, dynamic_stop_percent, entry_time, profit_taken, significance_score, direction))
+            INSERT OR REPLACE INTO active_positions (ticker, purchase_price, share_qty, highest_tracked_price, dynamic_stop_percent, entry_time, profit_taken, significance_score, direction, strategy_tag)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (ticker, purchase_price, share_qty, highest_tracked_price, dynamic_stop_percent, entry_time, profit_taken, significance_score, direction, strategy_tag))
         await db.commit()
 
 async def get_active_positions() -> List[Dict[str, Any]]:

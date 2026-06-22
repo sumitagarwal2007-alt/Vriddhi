@@ -12,6 +12,16 @@ WATCHLIST = ["AAPL", "TSLA", "META", "GOOGL", "AMZN", "MSFT", "NVDA", "AMD", "PL
 import requests
 import os
 from datetime import timedelta
+import database as db
+from alpaca.trading.client import TradingClient
+from alpaca.trading.requests import MarketOrderRequest
+
+def get_options_client():
+    api_key = os.getenv("ALPACA_OPTIONS_API_KEY")
+    secret_key = os.getenv("ALPACA_OPTIONS_SECRET_KEY")
+    if api_key and secret_key:
+        return TradingClient(api_key, secret_key, paper=True)
+    return None
 
 def fetch_recent_news(ticker: str):
     token = os.getenv("FINNHUB_TOKEN")
@@ -109,6 +119,7 @@ async def run_daily_analysis():
                 "delta": best_contract['delta'],
                 "theta": best_contract['theta'],
                 "iv": best_contract['iv'],
+                "contract_symbol": best_contract['contract_symbol'],
                 "reasoning": target['reasoning']
             })
         except Exception as e:
@@ -147,6 +158,42 @@ async def run_daily_analysis():
         fields[f"{ticker} Call Option Setup"] = trade_summary
         report_desc += f"**{ticker}** ({exp} ${strike:.2f}C)\\n{reason}\\n\\n"
         
+    # Execute Options Orders and Log
+    options_client = get_options_client()
+    for rec in recommendations:
+        ticker = rec['ticker']
+        contract = rec['contract_symbol']
+        try:
+            if options_client:
+                print(f"Submitting Options Order to Alpaca for {contract}...")
+                order_data = MarketOrderRequest(
+                    symbol=contract,
+                    qty=1,
+                    side='buy',
+                    time_in_force='day'
+                )
+                order = options_client.submit_order(order_data)
+                alpaca_order_id = str(order.id)
+            else:
+                alpaca_order_id = "SIMULATED_OPT_ORDER"
+                
+            # Log to DB
+            ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            # We buy 1 contract (represents 100 shares, but alpaca options qty is contracts)
+            await db.log_transaction(ts, alpaca_order_id, contract, "BUY", 1.0, rec['ask'], "MARKET", "FILLED", "OPTIONS_SWING")
+            await db.add_active_position(
+                ticker=contract, # Use contract symbol as ticker for tracking
+                purchase_price=rec['ask'],
+                share_qty=1.0,
+                highest_tracked_price=rec['ask'],
+                dynamic_stop_percent=0.20, # Options have wider stops
+                entry_time=ts,
+                strategy_tag="OPTIONS_SWING"
+            )
+            print(f"Logged Option Position {contract} to Database.")
+        except Exception as e:
+            print(f"Failed to execute/log order for {contract}: {e}")
+
     notif.send_alert(report_title, report_desc, color=0x9333ea, fields=fields)
     print("Engine cycle complete.")
 

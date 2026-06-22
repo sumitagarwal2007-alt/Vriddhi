@@ -14,3 +14,94 @@
 [2026-06-20 19:58:00] [Orchestrator] Starting loops...
 [2026-06-20 19:58:00] [Prahari Loop] Waiting 15 seconds for Alpaca servers to purge old ghost connections...
 [2026-06-20 19:58:15] [Prahari Loop] Connecting to Alpaca News Stream...
+[2026-06-21 01:29:06] [Prahari Loop] Received headline: Ro Khanna Says Americans Didn&#39;t Fight A Revolution &#39;To Be Ruled By Tech Billionaires&#39; As OpenAI, Anthropic And Meta Leaders Join G7 AI Talks
+[2026-06-21 01:29:10] [Agent BIRBAL] Headline processed. Found 1 ticker(s) to evaluate.
+[2026-06-21 01:29:10]   -> META: BEARISH (Score: 6)
+[2026-06-21 01:29:11] [ML Gatekeeper] META BEARISH REJECTED: Only 30.6% win probability.
+[2026-06-21 02:16:48] [Prahari Loop] Received headline: JB Pritzker Says Illinois Has &#39;A Right To Win&#39; Quantum Computing Race, Builds Chicago Hub With PsiQuantum, GlobalFoundries
+[2026-06-21 02:16:51] [Agent BIRBAL] Headline processed. Found 1 ticker(s) to evaluate.
+[2026-06-21 02:16:51]   -> GFS: BULLISH (Score: 7)
+[2026-06-21 04:05:12] [Prahari Loop] Received headline: JD Vance Says Trump Backs Government Stakes In AI Giants, But Musk And Cuban Push Back: &#39;Better Just To Send Money Directly&#39;
+[2026-06-21 04:05:19] [Agent BIRBAL] Headline processed. Found 1 ticker(s) to evaluate.
+[2026-06-21 04:05:19]   -> TSLA: BULLISH (Score: 5)
+[2026-06-21 04:05:20] [ML Gatekeeper] TSLA BULLISH REJECTED: Only 29.7% win probability.
+[2026-06-21 06:01:35] [Prahari Loop] Received headline: Apple&#39;s Tim Cook Warns Of Price Hike, Intel Soars On Trump&#39;s Apple Parttnership Announcement, And More: This Week In Appleverse
+[2026-06-21 06:01:41] [Agent BIRBAL] Headline processed. Found 2 ticker(s) to evaluate.
+[2026-06-21 06:01:41]   -> AAPL: BEARISH (Score: 7)
+[2026-06-21 06:01:41] [ML Gatekeeper] AAPL BEARISH REJECTED: Only 38.0% win probability.
+[2026-06-21 06:01:41]   -> INTC: BULLISH (Score: 8)
+[2026-06-21 06:01:41] [ML Gatekeeper] INTC BULLISH REJECTED: Only 27.7% win probability.
+[2026-06-21 06:45:39] [Prahari Loop] Received headline: Apple&#39;s Tim Cook Warns Of Price Hike, Intel Soars On Trump&#39;s Apple Partnership Announcement, And More: This Week In Appleverse
+[2026-06-21 06:45:45] [Agent BIRBAL] Headline processed. Found 3 ticker(s) to evaluate.
+[2026-06-21 06:45:45]   -> AAPL: BEARISH (Score: 7)
+[2026-06-21 06:45:45] [ML Gatekeeper] AAPL BEARISH REJECTED: Only 27.6% win probability.
+[2026-06-21 06:45:45]   -> INTC: BULLISH (Score: 9)
+[2026-06-21 06:45:46] [ML Gatekeeper] INTC BULLISH REJECTED: Only 22.7% win probability.
+[2026-06-21 06:45:46]   -> AAPL: BULLISH (Score: 8)
+[2026-06-21 06:45:46] [ML Gatekeeper] AAPL BULLISH REJECTED: Only 16.2% win probability.
+[2026-06-21 08:01:38] [Prahari Loop] Received headline: Amazon&#39;s AI Chip Expansion, Intel&#39;s New Hire And Google&#39;s Loss: This Week In Tech
+[2026-06-21 08:01:42] [Agent BIRBAL] Headline processed. Found 3 ticker(s) to evaluate.
+[2026-06-21 08:01:42]   -> AMZN: BULLISH (Score: 8)
+[2026-06-21 08:01:42] [ML Gatekeeper] AMZN BULLISH REJECTED: Only 26.7% win probability.
+[2026-06-21 08:01:42]   -> INTC: NEUTRAL (Score: 3)
+[2026-06-21 08:01:42]   -> GOOGL: BEARISH (Score: 7)
+[2026-06-21 08:01:43] [ML Gatekeeper] GOOGL BEARISH REJECTED: Only 18.1% win probability.
+[2026-06-21 08:26:39] [Prahari Loop] Received headline: Jane Street Challenges Citadel and Wall Street Giants as Revenue Surges
+[2026-06-21 08:26:39] [Prahari Loop] Dropping irrelevant headline: Jane Street Challenges Citadel and Wall Street Gia...
+[2026-06-21 08:31:15] [Prahari Loop] Received headline: Trump&#39;s EV Policies, Tesla&#39;s Robotaxi Boost, GM&#39;s New Silverado, Uber&#39;s Zurich Expansion And More: This Week In Mobility
+[2026-06-21 08:31:19] [Agent BIRBAL] Headline processed. Found 3 ticker(s) to evaluate.
+[2026-06-21 08:31:19]   -> TSLA: BULLISH (Score: 8)
+[2026-06-21 08:31:19] [ML Gatekeeper] TSLA BULLISH REJECTED: Only 14.5% win probability.
+[2026-06-21 08:31:19]   -> GM: BULLISH (Score: 7)
+[2026-06-21 08:31:20] [ML Gatekeeper] GM BULLISH REJECTED: Only 21.7% win probability.
+[2026-06-21 08:31:20]   -> UBER: BULLISH (Score: 6)
+[2026-06-21 08:31:20] [ML Gatekeeper] UBER BULLISH REJECTED: Only 34.7% win probability.
+[2026-06-21 08:41:05] [Prahari Loop] Received headline: Consumer Tech News (June 15-18): Trump Signals Major US Chip Alliance, Snap AR Glasses Face Criticism &amp; More
+[2026-06-21 08:41:08] [Agent BIRBAL] Headline processed. Found 3 ticker(s) to evaluate.
+[2026-06-21 08:41:08]   -> INTC: BULLISH (Score: 8)
+[2026-06-21 08:41:08] [ML Gatekeeper] INTC BULLISH REJECTED: Only 35.1% win probability.
+[2026-06-21 08:41:08]   -> NVDA: BULLISH (Score: 8)
+[2026-06-21 08:41:09] [ML Gatekeeper] NVDA BULLISH REJECTED: Only 25.5% win probability.
+[2026-06-21 08:41:09]   -> SNAP: BEARISH (Score: 6)
+[2026-06-21 09:31:37] [Prahari Loop] Received headline: SpaceX Has 18,712 BTC, Strategy Has 846,842 BTC: Whose Bitcoin Stack Matters More?
+[2026-06-21 09:31:39] [Agent BIRBAL] Headline processed. Found 0 ticker(s) to evaluate.
+[2026-06-21 10:01:10] [Prahari Loop] Received headline: Top Four S&amp;P 500 Stocks To Watch Next Week: MU, CCL, FDX, PAYX
+[2026-06-21 10:01:14] [Agent BIRBAL] Headline processed. Found 4 ticker(s) to evaluate.
+[2026-06-21 10:01:14]   -> MU: NEUTRAL (Score: 6)
+[2026-06-21 10:01:14]   -> CCL: NEUTRAL (Score: 6)
+[2026-06-21 10:01:14]   -> FDX: NEUTRAL (Score: 6)
+[2026-06-21 10:01:14]   -> PAYX: NEUTRAL (Score: 6)
+[2026-06-21 12:01:19] [Prahari Loop] Received headline: Netflix Co-CEO Ted Sarandos Doesn&#39;t Bother With Management Books, But This 1902 Book A Steamship Captain He Read &#39;Over And Over&#39; Again
+[2026-06-21 12:01:22] [Agent BIRBAL] Headline processed. Found 1 ticker(s) to evaluate.
+[2026-06-21 12:01:22]   -> NFLX: NEUTRAL (Score: 1)
+[2026-06-21 12:11:08] [Prahari Loop] Received headline: Peterffy Overtakes Bill Gates on Net Worth List as IBKR Surges
+[2026-06-21 12:11:10] [Agent BIRBAL] Headline processed. Found 1 ticker(s) to evaluate.
+[2026-06-21 12:11:10]   -> IBKR: BULLISH (Score: 8)
+[2026-06-21 12:11:10] [ML Gatekeeper] IBKR BULLISH REJECTED: Only 37.6% win probability.
+[2026-06-21 12:31:25] [Prahari Loop] Received headline: MSTR Nears Make-Or-Break Price as Saylor Hints at Buying More Bitcoin
+[2026-06-21 12:31:25] [Prahari Loop] Dropping irrelevant headline: MSTR Nears Make-Or-Break Price as Saylor Hints at ...
+[2026-06-21 12:51:27] [Prahari Loop] Received headline: Top Three Catalysts For Dow, Nasdaq 100, and S&amp;P 500 This Week
+[2026-06-21 12:51:31] [Agent BIRBAL] Headline processed. Found 3 ticker(s) to evaluate.
+[2026-06-21 12:51:31]   -> DIA: NEUTRAL (Score: 7)
+[2026-06-21 12:51:31]   -> QQQ: NEUTRAL (Score: 7)
+[2026-06-21 12:51:31]   -> SPY: NEUTRAL (Score: 7)
+[2026-06-21 13:08:57] [Prahari Loop] Received headline: Elizabeth Warren Targets Elon Musk In Renewed Push For Ultra-Millionaire Tax
+[2026-06-21 13:09:01] [Agent BIRBAL] Headline processed. Found 1 ticker(s) to evaluate.
+[2026-06-21 13:09:01]   -> TSLA: NEUTRAL (Score: 4)
+[2026-06-21 13:31:10] [Prahari Loop] Received headline: NVIDIA Stock Has Slipped By 10% From YTD High As Pros Predict 46% Jump
+[2026-06-21 13:31:13] [Agent BIRBAL] Headline processed. Found 1 ticker(s) to evaluate.
+[2026-06-21 13:31:13]   -> NVDA: BULLISH (Score: 8)
+[2026-06-21 13:31:13] [ML Gatekeeper] NVDA BULLISH REJECTED: Only 47.2% win probability.
+[2026-06-21 13:40:54] [Prahari Loop] Received headline: DRAM ETF Assets Hit $21 Billion AUM, But Key Risks May Lead To A Reversal
+[2026-06-21 13:40:58] [Agent BIRBAL] Headline processed. Found 0 ticker(s) to evaluate.
+[2026-06-21 16:17:25] [Prahari Loop] Received headline: Rocket Lab Stock Has Dived After SpaceX IPO, But Top Analysts Predict A Rebound
+[2026-06-21 16:17:25] [Prahari Loop] Dropping irrelevant headline: Rocket Lab Stock Has Dived After SpaceX IPO, But T...
+[2026-06-21 16:26:40] [Prahari Loop] Received headline: Top Three Reasons Why Tom Lee’s BMNR Stock May Be on the Cusp of a Deeper Dive
+[2026-06-21 16:26:40] [Prahari Loop] Dropping irrelevant headline: Top Three Reasons Why Tom Lee’s BMNR Stock May Be ...
+[2026-06-21 16:37:50] [Prahari Loop] Received headline: Nio Stock Falls to Key Support Level Despite Strong Delivery and Revenue Growth
+[2026-06-21 16:37:50] [Prahari Loop] Dropping irrelevant headline: Nio Stock Falls to Key Support Level Despite Stron...
+[2026-06-21 16:46:30] [Prahari Loop] Received headline: Investors Flee Cathie Wood&#39;s ARKK ETF As It Trails S&amp;P 500, Nasdaq 100 By Far
+[2026-06-21 16:46:34] [Agent BIRBAL] Headline processed. Found 1 ticker(s) to evaluate.
+[2026-06-21 16:46:34]   -> ARKK: BEARISH (Score: 8)
+[2026-06-21 21:02:15] [Prahari Loop] Received headline: Bitcoin, Ethereum, XRP, Dogecoin Flat Amid Trump&#39;s Threat On Hormuz Strait To Iran: Analyst Says BTC Breaking This Level Will &#39;Trigger&#39; Bull Market
+[2026-06-21 21:02:15] [Prahari Loop] Dropping irrelevant headline: Bitcoin, Ethereum, XRP, Dogecoin Flat Amid Trump&#...

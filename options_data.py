@@ -78,6 +78,7 @@ def get_leaps_options_chain(ticker_symbol: str, min_days_to_expiration: int = 45
             ask = row['ask']
             volume = row['volume']
             open_interest = row['openInterest']
+            contract_symbol = row['contractSymbol']
             
             # Compute Greeks if IV is available and valid
             if pd.notna(iv) and iv > 0.01:
@@ -87,6 +88,7 @@ def get_leaps_options_chain(ticker_symbol: str, min_days_to_expiration: int = 45
                 
             all_calls.append({
                 'ticker': ticker_symbol,
+                'contract_symbol': contract_symbol,
                 'expiration': exp_str,
                 'days_to_exp': days_to_exp,
                 'strike': strike,

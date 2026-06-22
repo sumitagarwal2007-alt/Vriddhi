@@ -39,6 +39,7 @@ def api_stats():
         conn.close()
         
         trades, win_rate, pnl = 0, 0.0, 0.0
+        pnl_vwap, pnl_options = 0.0, 0.0
         
         if not df_tf.empty:
             trades = len(df_tf)
@@ -66,7 +67,16 @@ def api_stats():
                 elif action == 'SELL':
                     if pos['qty'] > 0:
                         avg_cost = pos['total_cost'] / pos['qty']
-                        pnl += (price - avg_cost) * qty
+                        realized = (price - avg_cost) * qty
+                        pnl += realized
+                        
+                        # Split by strategy if available
+                        strategy = row.get('strategy_tag', 'VWAP_EQUITY')
+                        if strategy == 'OPTIONS_SWING':
+                            pnl_options += realized
+                        else:
+                            pnl_vwap += realized
+                            
                         pos['qty'] -= qty
                         pos['total_cost'] -= avg_cost * qty
                         if pos['qty'] <= 0.0001:
@@ -95,6 +105,8 @@ def api_stats():
             "trades": len(df_tx) if 'df_tx' in locals() else 0,
             "win_rate": win_rate,
             "pnl": pnl,
+            "pnl_vwap": pnl_vwap,
+            "pnl_options": pnl_options,
             "market_status": market_status,
             "next_open": next_open,
             "is_open": is_open
@@ -170,12 +182,14 @@ def api_positions():
                     if ticker in db_positions:
                         row = db_positions[ticker]
                         direction = row.get('direction', 'LONG')
+                        strategy_tag = row.get('strategy_tag', 'VWAP_EQUITY')
                         if direction == 'LONG':
                             stop_price = float(row['highest_tracked_price']) * (1 - float(row['dynamic_stop_percent']))
                         else:
                             stop_price = float(row['highest_tracked_price']) * (1 + float(row['dynamic_stop_percent']))
                     else:
                         direction = 'LONG'
+                        strategy_tag = 'VWAP_EQUITY'
                     
                     positions_list.append({
                         "ticker": ticker,
@@ -186,7 +200,8 @@ def api_positions():
                         "unrealized_plpc": float(p.unrealized_plpc) * 100,
                         "stop_price": stop_price,
                         "current_price": float(p.current_price),
-                        "direction": direction
+                        "direction": direction,
+                        "strategy_tag": strategy_tag
                     })
             except Exception as e:
                 print(f"Error fetching positions from Alpaca: {e}")
